@@ -184,11 +184,93 @@ AgentClient
 
 Similarly, agents depend on the `ModelProvider` abstraction rather than any
 specific vendor SDK, so `MockProvider` / `AnthropicProvider` / `LocalProvider` are
-interchangeable. Neither client nor any provider is implemented in Phase 0.
+interchangeable. The transport clients are not implemented yet; the providers
+arrive in Phase 1 (see the next section).
 
-## 15. What Phase 0 contains — and what it intentionally does not
+## 15. The Model Provider layer (Phase 1)
 
-### Contains
+### Why agents depend on `ModelProvider`, not Anthropic
+
+Every future agent calls the LLM through the single abstract interface in
+`app/providers/model.py`:
+
+```python
+result = await provider.generate_structured(
+    system_prompt=...,
+    user_prompt=...,
+    response_model=ResearchPlan,
+)
+```
+
+An agent never imports the `anthropic` SDK, never sees a raw SDK response object,
+and never knows whether it is talking to a mock, to Anthropic, or to some future
+local model. This keeps vendor-specific code in exactly one place
+(`app/providers/anthropic.py`) instead of leaking a hard Anthropic dependency
+into all five agents and the orchestrator. Swapping or adding a provider is a
+change to one module plus the factory.
+
+### The boundary
+
+```
+Agent  ->  ModelProvider  ->  (MockModelProvider | AnthropicModelProvider)  ->  anthropic SDK
+```
+
+The orchestrator sits above the agents and likewise never contains SDK calls.
+
+### `MockModelProvider` — zero-cost development
+
+`MockModelProvider` replays queued responses and records every call
+(`operation`, `system_prompt`, `user_prompt`, `response_model`). It performs no
+I/O. Because it satisfies the same interface, entire workflows, loops, and agent
+tests can run against it with no API key and no cost. Structured responses are
+validated against the requested `response_model`, so a mock that returns the
+wrong shape fails loudly rather than silently handing back an incompatible
+object.
+
+### `AnthropicModelProvider` — real Claude access
+
+`AnthropicModelProvider` wraps `anthropic.AsyncAnthropic`. It takes explicit
+configuration (`api_key`, `model`, `max_tokens`, `temperature`), constructs
+nothing at import time, and makes no network request in `__init__`. For
+structured output it embeds the response model's JSON Schema in the system
+prompt, then parses the returned text (tolerating a single surrounding
+```json fence), and validates it with Pydantic.
+
+### Why structured output is validated with Pydantic
+
+The whole system depends on typed handoffs (§6). A provider that returned loosely
+shaped dicts would push validation into every agent. Instead the provider
+guarantees its contract: `generate_structured` returns an instance of
+`response_model` or raises `StructuredOutputError`. Callers can trust the type.
+
+### Why the provider does NOT own retry policy
+
+If a model returns malformed JSON, `AnthropicModelProvider` raises immediately —
+it does not silently repair the output and does not run its own correction loop.
+Retry/repair is a *workflow* concern: how many times to re-ask, whether to widen
+the research, when to fail the run. That belongs to the deterministic
+orchestration engine (a later phase) alongside `max_research_iterations` and
+`max_validation_attempts`, not buried in the provider.
+
+### Why mock is the safe default
+
+`ModelConfig` defaults to `provider = "mock"`. `ModelConfig.from_env()` with no
+environment variables returns a mock config and never raises. The factory
+(`create_model_provider`) builds a `MockModelProvider` for the default config and
+makes no network call. Anthropic is reached only when `MODEL_PROVIDER=anthropic`
+is set together with `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` — and even then
+only when application or script code actually calls a `generate_*` method. This
+is deliberate: it makes accidental API spend structurally hard.
+
+### Future `LocalProvider`
+
+A local-model provider (e.g. an on-device or self-hosted model) would be a third
+implementation of the same interface and a third `ModelProviderType` value.
+Nothing above the provider layer changes.
+
+## 17. What has been built so far — and what has not
+
+### Phase 0 — architecture scaffolding
 
 - project skeleton and packaging (`pyproject.toml`, `.gitignore`, `.env.example`)
 - core Pydantic domain models: `planning`, `research`, `judging`, `analysis`,
@@ -203,20 +285,32 @@ interchangeable. Neither client nor any provider is implemented in Phase 0.
 - this document and `README.md`
 - tests for models, validation bounds, transitions, and config
 
-### Intentionally does NOT contain
+### Phase 1 — the model-provider layer
 
-- any Anthropic API / Claude SDK usage
+- `ModelConfig` + `ModelProviderType` (defaults to mock; `from_env` helper)
+- provider exceptions: `ModelProviderError`, `ModelConfigurationError`,
+  `ModelResponseError`, `StructuredOutputError`, `MockResponseExhaustedError`
+- `MockModelProvider` — queued deterministic responses + call history
+- `AnthropicModelProvider` — `AsyncAnthropic` wrapper, JSON-schema-guided
+  structured output, no import-time or `__init__` network activity
+- `create_model_provider` factory (no network calls; mock by default)
+- optional `scripts/model_smoke_test.py` (mock by default; `--live` gated)
+- provider tests, all with the Anthropic SDK fully faked
+
+### Intentionally does NOT exist yet
+
 - any concrete agent (`PlannerAgent`, `ResearchAgent`, `JudgeAgent`,
   `AnalysisAgent`, `WriterAgent`)
+- the orchestration engine: sequential, parallel, or loop execution; retries;
+  timeout handling; state-transition driving
+- provider-side retry/repair of malformed model output
 - web search or HTTP fetching
 - FastAPI, SSE/WebSockets, or any frontend
 - SQLite / SQLAlchemy / persistence
 - HTTP agent services or `LocalAgentClient` / `HttpAgentClient` implementations
-- the orchestration engine: sequential, parallel, or loop execution; retries;
-  timeout handling
 - a real Agent Skills loader or real validation scripts
 - an event bus
 - Docker, Kubernetes, Redis, Celery, message queues, vector databases, auth
 
-Phase 0 has no working application behavior — only interfaces, models, basic
-validation, and tests.
+There is still no multi-agent workflow. Phase 1 only makes the LLM boundary
+usable and cheap to test against.
