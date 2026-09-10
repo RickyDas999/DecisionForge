@@ -74,19 +74,21 @@ def test_blank_query_is_rejected(blank: str) -> None:
     assert provider.calls == []
 
 
-def test_duckduckgo_construction_makes_no_network_call() -> None:
-    before = set(sys.modules)
+def test_duckduckgo_construction_does_not_import_ddgs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Force `import ddgs` to fail so we can prove construction never triggers it.
+    monkeypatch.setitem(sys.modules, "ddgs", None)
     provider = DuckDuckGoSearchProvider()
-    assert isinstance(provider, DuckDuckGoSearchProvider)
-    # constructing it must not import ddgs or make any request
-    assert "ddgs" not in sys.modules or "ddgs" in before
+    assert isinstance(provider, DuckDuckGoSearchProvider)  # no error raised
 
 
-def test_duckduckgo_missing_dependency_raises_configuration_error() -> None:
-    # ddgs is not installed in the test environment; calling search() should
-    # fail loudly with a configuration error, not a network error.
-    if "ddgs" in sys.modules:  # pragma: no cover - only if someone installed it
-        pytest.skip("ddgs is installed in this environment")
+def test_duckduckgo_missing_dependency_raises_configuration_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Simulate the package being unavailable (works whether or not it is
+    # installed) — `search()` must fail with a config error, never a network call.
+    monkeypatch.setitem(sys.modules, "ddgs", None)
     provider = DuckDuckGoSearchProvider()
     with pytest.raises(SearchConfigurationError):
         asyncio.run(provider.search("anything"))

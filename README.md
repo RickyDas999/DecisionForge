@@ -31,7 +31,7 @@ User request
 > complexity, and is **not** planned for this version. See
 > `docs/architecture.md` -> "Architecture Reframe".
 
-## Status (Phase 6)
+## Status (Phase 7)
 
 Implemented:
 
@@ -56,7 +56,14 @@ Implemented:
   call and pass it in via `provided_context` (deterministically size-capped);
   **BRIEF never searches**. Search adds **zero** LLM calls; a search failure
   stops the request with no retry and no fallback.
-- demos: `scripts/tools_demo.py` (search + context builder),
+- **local SQLite persistence + execution tracing** — `DecisionForgeService`
+  wraps the dispatcher, records each run (`RunRecord`: route, selected
+  specialist, search usage, status, serialized result, error, timestamps) and a
+  chronological event stream (`run.started` → `route.selected` →
+  optional `search.*` → `specialist.*` → `run.completed` / `run.failed`) into a
+  local `sqlite3` database. Deterministic file I/O — **zero** model calls; a
+  failed run is stored and the original exception is re-raised unchanged.
+- demos: `scripts/persistence_demo.py`, `scripts/tools_demo.py`,
   `scripts/skills_demo.py`, `scripts/dispatch_demo.py`; all zero-cost by default.
 
 Not claimed: DecisionForge has **no autonomous research** — Claude never decides
@@ -64,11 +71,10 @@ to call a tool; deterministic Python does, once, before the specialist.
 
 Not implemented yet:
 
+- web UI (the persisted run + event history is the foundation for it)
+- HTTP/A2A transport
 - full webpage scraping / crawling
 - autonomous / model-driven tool use
-- persistence / run history
-- web UI
-- optional HTTP/A2A transport
 
 ## Model provider & cost
 
@@ -126,12 +132,16 @@ tests).
 
 ```bash
 python scripts/dispatch_demo.py         # END-TO-END: request -> orchestrator -> [search] -> one specialist -> result
+python scripts/persistence_demo.py      # one run persisted to a temp SQLite DB + its event stream
 python scripts/tools_demo.py            # search tool: MockSearchProvider + build_search_context (file/CPU only)
 python scripts/skills_demo.py           # Agent Skills: discovery -> activation -> extension (file I/O only)
 python scripts/orchestrator_demo.py     # routes 3 sample requests via MockModelProvider
 python scripts/specialists_demo.py      # runs all 3 leaf specialists via MockModelProvider
 python scripts/model_smoke_test.py      # exercises both provider methods via MockModelProvider
 ```
+
+Database location: `DECISIONFORGE_DB_PATH`, else `./data/decisionforge.db`
+(`data/` and `*.db` are git-ignored).
 
 Each script has an explicit `--live` mode that makes real, potentially billable
 Anthropic requests and requires `MODEL_PROVIDER=anthropic` plus credentials.

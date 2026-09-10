@@ -433,7 +433,75 @@ isolation is re-proved with search active).
 Page fetching / crawling is deliberately **not** implemented — snippets are
 enough to demonstrate the tool architecture.
 
-## 14. Architecture Reframe
+## 14. Local persistence and execution tracing
+
+Every request can be recorded to a local SQLite database. Persistence is
+deterministic file I/O — **zero** model calls, zero agent calls, zero retries —
+and does not touch the semantic architecture.
+
+### Layering
+
+```
+DecisionForgeService          # owns the run lifecycle + persistence
+   -> creates a run row, records run.started
+   -> DecisionForgeDispatcher.dispatch(request, ctx, observer=…)   # called ONCE
+        (routing = LLM #1, optional search = LLM #0, one specialist = LLM #2)
+   -> on success: store DispatchResult JSON, record run.completed, status=completed
+   -> on any exception: store error text, record run.failed, status=failed, RE-RAISE
+```
+
+`DecisionForgeDispatcher` is unchanged in substance — still routing + optional
+search + exactly one specialist. It gained one optional `dispatch(..., observer=)`
+argument: a `DispatchObserver` (`app/orchestration/observer.py`) whose no-op base
+is called at deterministic points (`on_routing_completed`, `on_search_started` /
+`on_search_completed`, `on_specialist_started` / `on_specialist_completed`). The
+observer is **observational only** — it cannot change control flow or issue model
+calls. `DecisionForgeService` supplies an observer that writes the route and
+search-usage to the run row and records events.
+
+### Models — `app/models/persistence.py`
+
+- **`RunStatus`** — a *new, small* enum for the single-hop architecture:
+  `started` -> `routed` -> `completed` | `failed`. (The legacy Phase 0
+  `planning/researching/judging/...` `RunStatus` stays in `app/models/state.py`
+  for old tests only.)
+- **`EventType`** — `run.started`, `route.selected`, `search.started`,
+  `search.completed`, `specialist.started`, `specialist.completed`,
+  `run.completed`, `run.failed`. `search.*` events are emitted **only when search
+  actually runs**.
+- **`RunRecord`** — `run_id`, `user_request`, `provided_context`, `route`,
+  `routing_reasoning`, `selected_specialist`, `search_used`, `status`,
+  `result_json` (serialized `DispatchResult`), `error`, `created_at`,
+  `completed_at`. Timestamps are timezone-aware UTC.
+- **`ExecutionEvent`** — `event_id`, `run_id`, `event_type`, `message`,
+  `metadata` (dict), `timestamp`.
+
+### Repository — `app/persistence/sqlite.py`
+
+`SQLiteRunRepository` uses the standard-library `sqlite3` with **parameterized
+SQL only** (no ORM, no string-interpolated queries, no SQLAlchemy). Two tables,
+`runs` and `events`, created idempotently (`CREATE TABLE IF NOT EXISTS`) with an
+index on `events(run_id, timestamp)`. The structured specialist result is stored
+as `result_json` text (Pydantic `model_dump_json`); reads reconstruct
+`RunRecord` / `ExecutionEvent`. Run ids are UUID4 generated in application code.
+
+### Config and safety
+
+DB path: `db_path` argument, else `DECISIONFORGE_DB_PATH`, else
+`./data/decisionforge.db`. `data/`, `*.db`, and `*.sqlite3` are git-ignored.
+`provided_context` **is** stored (it is part of the local run history); API keys,
+environment dumps, provider credentials, and raw SDK objects are **never** stored
+or logged. Error text is `TypeName: message` only.
+
+### Failure behaviour
+
+Every failure — orchestrator/provider error, search error, missing brief context,
+specialist error, structured-output error — is persisted as `status = failed`
+with the error text and a `run.failed` event, and the **original exception is
+re-raised unchanged**. No retry, no fallback specialist, no alternate route, no
+suppression.
+
+## 15. Architecture Reframe
 
 **An earlier version of this document described a different system.** That design
 is no longer the target and is not planned for the current portfolio version.
@@ -495,20 +563,20 @@ use their own fresh, minimal models in `app/models/specialists.py`.
 
 Parent/orchestrator + specialist hierarchy, constrained single-hop delegation,
 specialized agents, structured Pydantic outputs, shared runtime context, the
-model-provider abstraction, local-first execution, local Agent Skills with
-progressive disclosure (§12), and — later — tool use, optional remote transport,
-execution tracing, and persistence. The project does **not** aim to mechanically
-implement every multi-agent pattern (no `SequentialAgent` / `ParallelAgent` /
-`LoopAgent` abstractions).
+model-provider abstraction, local-first execution, Agent Skills with progressive
+disclosure (§12), a deterministic tool layer (§13), local persistence and
+execution tracing (§14), and — later — optional remote transport and a local UI.
+The project does **not** aim to mechanically implement every multi-agent pattern
+(no `SequentialAgent` / `ParallelAgent` / `LoopAgent` abstractions).
 
-## 15. Build status
+## 16. Build status
 
 ### Implemented
 
 - **Phase 0** — package skeleton; contracts (`BaseAgent` + `AgentRuntimeContext`,
   `ModelProvider`, `BaseTool` + `ToolResult`, `SkillRegistry`, `AgentClient`);
   `RunState` / `RunStatus`; `WorkflowConfig`; event contracts; tests. *(Some
-  models are now legacy — see §14.)*
+  models are now legacy — see §15.)*
 - **Phase 1** — `ModelProvider` layer: `ModelConfig` + `ModelProviderType`,
   provider exceptions, `MockModelProvider`, `AnthropicModelProvider`,
   `create_model_provider` factory, `scripts/model_smoke_test.py`, provider tests.
@@ -545,10 +613,19 @@ implement every multi-agent pattern (no `SequentialAgent` / `ParallelAgent` /
   wiring, small research/comparison prompt notes, `scripts/tools_demo.py`,
   updated `scripts/dispatch_demo.py`, and `tests/tools/` + search dispatcher
   tests. Optional `ddgs` dependency (`[search]` extra).
+- **Phase 7** — local SQLite persistence + execution tracing (§14):
+  `app/models/persistence.py` (`RunStatus`, `EventType`, `RunRecord`,
+  `ExecutionEvent`), `app/persistence/sqlite.py` (`SQLiteRunRepository`,
+  `resolve_db_path`), `app/events/recorder.py` (`ExecutionRecorder`),
+  `app/orchestration/observer.py` (`DispatchObserver`), `dispatch(..., observer=)`,
+  `app/service.py` (`DecisionForgeService`), `create_service` in `app/runtime.py`,
+  `scripts/persistence_demo.py`, and `tests/persistence/` (repository + service).
+  Standard-library `sqlite3` only.
 
 ### Not implemented yet
 
 - full webpage fetching / scraping / crawling
 - autonomous / model-driven tool use
-- deterministic post-processing beyond result assembly (formatting, storage)
-- persistence, events wiring, HTTP/A2A transport, UI
+- deterministic post-processing beyond result assembly (formatting, export)
+- HTTP/A2A transport, web UI (the persisted run + event history is the
+  foundation for a future local UI)

@@ -5,13 +5,19 @@ Current architecture (post-reframe):
 - ``routing`` — models for the single-hop OrchestratorAgent
 - ``specialists`` — input/output models for the three leaf specialist agents
 
+- ``persistence`` — current ``RunStatus`` / ``EventType`` plus ``RunRecord`` /
+  ``ExecutionEvent`` for local SQLite run history
+
 The ``analysis`` / ``brief`` / ``judging`` / ``planning`` / ``research`` /
-``state`` modules are **legacy** — they describe the earlier multi-stage pipeline
-that is no longer the target. They are kept only so existing tests keep passing;
-do not build new code on them. See ``docs/architecture.md`` -> "Architecture
-Reframe". (The legacy ``BriefInput`` in ``app.models.brief`` is intentionally not
-re-exported here; the current-architecture ``BriefInput`` below is from
-``app.models.specialists``.)
+``state`` / ``events`` modules are **legacy** — they describe the earlier
+multi-stage pipeline that is no longer the target. They are kept only so existing
+tests keep passing; do not build new code on them. See
+``docs/architecture.md`` -> "Architecture Reframe". Two names are intentionally
+re-pointed here to their current-architecture versions:
+``BriefInput`` (from ``app.models.specialists``, not ``app.models.brief``) and
+``RunStatus`` / ``EventType`` (from ``app.models.persistence``, not
+``app.models.state`` / ``app.models.events``). The legacy classes stay importable
+from their own modules.
 """
 
 from app.models.analysis import (
@@ -25,8 +31,9 @@ from app.models.analysis import (
 )
 from app.models.brief import FinalBrief
 from app.models.dispatch import DispatchRequest, DispatchResult, SpecialistResponse
-from app.models.events import EventType, WorkflowEvent
+from app.models.events import WorkflowEvent
 from app.models.judging import JudgeInput, JudgeResult
+from app.models.persistence import EventType, ExecutionEvent, RunRecord, RunStatus
 from app.models.planning import PlannerInput, ResearchPlan, ResearchTrack
 from app.models.research import (
     ResearchFinding,
@@ -45,7 +52,7 @@ from app.models.specialists import (
     ResearchInput,
     ResearchResponse,
 )
-from app.models.state import RunState, RunStatus
+from app.models.state import RunState
 
 __all__ = [
     # --- Current architecture: routing ---
@@ -67,10 +74,13 @@ __all__ = [
     # --- Current architecture: search tool ---
     "SearchResponse",
     "SearchResult",
-    # --- Shared ---
+    # --- Current architecture: persistence / tracing ---
     "EventType",
-    "RunState",
+    "ExecutionEvent",
+    "RunRecord",
     "RunStatus",
+    # --- Legacy shared ---
+    "RunState",
     "WorkflowEvent",
     # --- Legacy (pre-reframe multi-stage pipeline; see docs/architecture.md) ---
     "AlternativesAnalysis",

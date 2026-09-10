@@ -95,9 +95,9 @@ class DuckDuckGoSearchProvider(SearchProvider):
 
         try:
             from ddgs import DDGS  # type: ignore[import-not-found]
-        except ModuleNotFoundError as exc:
+        except ImportError as exc:
             raise SearchConfigurationError(
-                "the 'ddgs' package is not installed; install it with "
+                "the 'ddgs' package is not available; install it with "
                 "`pip install -e \".[search]\"` to use DuckDuckGoSearchProvider"
             ) from exc
 

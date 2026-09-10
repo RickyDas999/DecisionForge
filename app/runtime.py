@@ -17,7 +17,9 @@ from app.agents.orchestrator import OrchestratorAgent
 from app.agents.research import ResearchAgent
 from app.models.routing import AgentRoute
 from app.orchestration.dispatcher import DecisionForgeDispatcher
+from app.persistence.sqlite import SQLiteRunRepository, resolve_db_path
 from app.providers.model import ModelProvider
+from app.service import DecisionForgeService
 from app.skills.base import SkillRegistry
 from app.skills.local import LocalSkillRegistry
 from app.skills.mapping import skill_for_route
@@ -58,3 +60,20 @@ def create_dispatcher(
 def create_local_skill_registry() -> LocalSkillRegistry:
     """A :class:`LocalSkillRegistry` rooted at the repo's ``skills/`` directory."""
     return LocalSkillRegistry()
+
+
+def create_service(
+    model_provider: ModelProvider,
+    *,
+    db_path: str | None = None,
+    skill_registry: SkillRegistry | None = None,
+    search_provider: SearchProvider | None = None,
+) -> DecisionForgeService:
+    """A :class:`DecisionForgeService` (dispatcher + SQLite persistence).
+
+    ``db_path`` defaults via ``resolve_db_path`` (``DECISIONFORGE_DB_PATH`` env var
+    or ``./data/decisionforge.db``). Persistence adds no model calls.
+    """
+    repository = SQLiteRunRepository(resolve_db_path(db_path))
+    dispatcher = create_dispatcher(model_provider, skill_registry, search_provider)
+    return DecisionForgeService(dispatcher, repository)
