@@ -501,7 +501,60 @@ with the error text and a `run.failed` event, and the **original exception is
 re-raised unchanged**. No retry, no fallback specialist, no alternate route, no
 suppression.
 
-## 15. Architecture Reframe
+## 15. Local web interface
+
+A small FastAPI app + plain-HTML/CSS/JS browser UI. The web layer adds **zero**
+LLM calls — it validates input, calls `DecisionForgeService.run(...)` **once**,
+and reads persisted runs/events.
+
+```
+Browser
+  -> FastAPI (app/web/app.py)
+  -> DecisionForgeService.run()      # exactly once
+       -> DecisionForgeDispatcher    # orchestrator = LLM #1
+          -> optional deterministic search   # 0 LLM calls
+          -> one specialist          # LLM #2
+       -> SQLite (run + events)
+  -> JSON response  -> the UI renders result + trace + recent runs
+```
+
+### Endpoints
+
+| Method + path | Purpose |
+|---|---|
+| `GET /` | the single HTML page |
+| `POST /api/runs` | body `{user_request, provided_context?}` → runs the service, returns the completed `RunView` (run id, status, route, routing reasoning, selected specialist, `search_used`, parsed structured `result`) |
+| `GET /api/runs` | recent run summaries (preview, route, status, timestamp) |
+| `GET /api/runs/{run_id}` | one `RunView` + its ordered `events` |
+
+### Construction and error handling
+
+`create_app(service, repository)` takes an already-built service — route handlers
+never construct providers or read secrets. Errors map to clean responses:
+blank request → `422` (Pydantic, before the service runs); missing brief context
+→ `400`; unknown run → `404`; provider / search / structured-output errors →
+`500`. Every error body is `{detail, error_type, run_id?}` — exception **type**
+and short message only, no stack traces, no secrets. The failing run is still
+persisted (`status = failed`, `run.failed` recorded) and the `run_id` is returned
+so the UI can show the partial trace.
+
+### Default server is offline
+
+`app/web/bootstrap.py` builds the app from `DemoModelProvider` (a deterministic,
+offline canned-response stand-in — **not** an LLM and **not** the real
+orchestrator; the two structured-output calls still happen, they just return demo
+data), an offline mock search provider, and local SQLite. No Anthropic, no
+network, no credentials. Run it with `python scripts/web_demo.py` or
+`uvicorn --factory app.web.bootstrap:create_demo_app`. A real Anthropic-backed
+server is a later, user-driven change (`create_app` with a service built from
+`create_model_provider(ModelConfig.from_env())`).
+
+### Not in this phase
+
+No SSE/WebSockets/live streaming (submit → wait → render the completed trace),
+no authentication, no accounts, no deployment tooling.
+
+## 16. Architecture Reframe
 
 **An earlier version of this document described a different system.** That design
 is no longer the target and is not planned for the current portfolio version.
@@ -569,14 +622,14 @@ execution tracing (§14), and — later — optional remote transport and a loca
 The project does **not** aim to mechanically implement every multi-agent pattern
 (no `SequentialAgent` / `ParallelAgent` / `LoopAgent` abstractions).
 
-## 16. Build status
+## 17. Build status
 
 ### Implemented
 
 - **Phase 0** — package skeleton; contracts (`BaseAgent` + `AgentRuntimeContext`,
   `ModelProvider`, `BaseTool` + `ToolResult`, `SkillRegistry`, `AgentClient`);
   `RunState` / `RunStatus`; `WorkflowConfig`; event contracts; tests. *(Some
-  models are now legacy — see §15.)*
+  models are now legacy — see §16.)*
 - **Phase 1** — `ModelProvider` layer: `ModelConfig` + `ModelProviderType`,
   provider exceptions, `MockModelProvider`, `AnthropicModelProvider`,
   `create_model_provider` factory, `scripts/model_smoke_test.py`, provider tests.
@@ -621,11 +674,18 @@ The project does **not** aim to mechanically implement every multi-agent pattern
   `app/service.py` (`DecisionForgeService`), `create_service` in `app/runtime.py`,
   `scripts/persistence_demo.py`, and `tests/persistence/` (repository + service).
   Standard-library `sqlite3` only.
+- **Phase 8** — local web interface (§15): `app/web/app.py` (`create_app`,
+  4 endpoints), `app/web/api_models.py`, `app/web/bootstrap.py` +
+  `app/web/demo_provider.py` (offline default server), `app/web/templates/` +
+  `app/web/static/` (plain HTML/CSS/JS UI), `scripts/web_demo.py`,
+  `tests/web/`, optional `service.run(..., run_id=…)`, `create_service` unchanged.
+  `fastapi` + `httpx` (dev/test), `uvicorn` (`[web]` extra). Zero LLM calls in
+  the web layer.
 
 ### Not implemented yet
 
 - full webpage fetching / scraping / crawling
 - autonomous / model-driven tool use
 - deterministic post-processing beyond result assembly (formatting, export)
-- HTTP/A2A transport, web UI (the persisted run + event history is the
-  foundation for a future local UI)
+- live event streaming (SSE/WebSockets), authentication, HTTP/A2A transport,
+  deployment tooling

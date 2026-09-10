@@ -31,7 +31,7 @@ User request
 > complexity, and is **not** planned for this version. See
 > `docs/architecture.md` -> "Architecture Reframe".
 
-## Status (Phase 7)
+## Status (Phase 8)
 
 Implemented:
 
@@ -63,15 +63,23 @@ Implemented:
   optional `search.*` → `specialist.*` → `run.completed` / `run.failed`) into a
   local `sqlite3` database. Deterministic file I/O — **zero** model calls; a
   failed run is stored and the original exception is re-raised unchanged.
-- demos: `scripts/persistence_demo.py`, `scripts/tools_demo.py`,
-  `scripts/skills_demo.py`, `scripts/dispatch_demo.py`; all zero-cost by default.
+- **local web interface** — a small FastAPI app + plain HTML/CSS/JS browser UI:
+  submit a request (+ optional context), see the route, selected specialist,
+  whether search ran, the structured result rendered per route, the execution
+  trace, and recent runs. The web layer adds **zero** LLM calls. The default
+  server (`python scripts/web_demo.py`) is fully offline — canned
+  `DemoModelProvider` + mock search + local SQLite, no credentials.
+- demos: `scripts/web_demo.py`, `scripts/persistence_demo.py`,
+  `scripts/tools_demo.py`, `scripts/skills_demo.py`, `scripts/dispatch_demo.py`;
+  all zero-cost by default.
 
 Not claimed: DecisionForge has **no autonomous research** — Claude never decides
 to call a tool; deterministic Python does, once, before the specialist.
 
 Not implemented yet:
 
-- web UI (the persisted run + event history is the foundation for it)
+- live event streaming (SSE/WebSockets) in the UI
+- authentication / accounts
 - HTTP/A2A transport
 - full webpage scraping / crawling
 - autonomous / model-driven tool use
@@ -142,6 +150,22 @@ python scripts/model_smoke_test.py      # exercises both provider methods via Mo
 
 Database location: `DECISIONFORGE_DB_PATH`, else `./data/decisionforge.db`
 (`data/` and `*.db` are git-ignored).
+
+## Web UI (zero cost)
+
+```bash
+pip install -e ".[dev,web]"
+python scripts/web_demo.py          # http://127.0.0.1:8000
+# equivalent: uvicorn --factory app.web.bootstrap:create_demo_app --reload
+```
+
+The default server is fully offline: a canned `DemoModelProvider`, an offline
+mock search provider, and local SQLite — no Anthropic, no network, no
+credentials. Submit a request in the browser to see the route, selected
+specialist, whether search ran, the structured result, the execution trace, and
+recent runs. To point the UI at real Claude, build `create_app` with a service
+whose provider comes from `create_model_provider(ModelConfig.from_env())` (real
+API calls, billable) — not wired into the default server.
 
 Each script has an explicit `--live` mode that makes real, potentially billable
 Anthropic requests and requires `MODEL_PROVIDER=anthropic` plus credentials.

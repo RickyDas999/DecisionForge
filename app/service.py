@@ -92,8 +92,10 @@ class DecisionForgeService:
         self,
         request: DispatchRequest,
         context: AgentRuntimeContext | None = None,
+        *,
+        run_id: str | None = None,
     ) -> RunRecord:
-        run_id = str(uuid.uuid4())
+        run_id = run_id or str(uuid.uuid4())
         ctx = context or AgentRuntimeContext(run_id=run_id)
 
         self._repository.create_run(

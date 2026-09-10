@@ -1,0 +1,156 @@
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --ink: #1c2024;
+  --muted: #626a72;
+  --line: #e4e7eb;
+  --accent: #2f6feb;
+  --ok: #1f8a4c;
+  --warn: #b26a00;
+  --err: #c22f2f;
+  --chip: #eef1f5;
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --panel: #1d2025;
+    --ink: #e8eaed;
+    --muted: #9aa2ab;
+    --line: #2c3037;
+    --accent: #6ea3ff;
+    --ok: #56c38a;
+    --warn: #e0a860;
+    --err: #ef7a7a;
+    --chip: #262a31;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.site-header {
+  padding: 28px 24px 16px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.site-header h1 { margin: 0; font-size: 26px; letter-spacing: -0.02em; }
+.tagline { margin: 6px 0 0; color: var(--muted); max-width: 60ch; }
+
+.layout {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 8px 24px 48px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+@media (min-width: 900px) {
+  .layout { grid-template-columns: 1fr 1fr; }
+  #recent-panel { grid-column: 1 / -1; }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 18px 20px;
+}
+.panel h2 { margin: 0 0 12px; font-size: 16px; }
+.panel h3 { margin: 20px 0 8px; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted); }
+
+label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 13px; }
+label:first-of-type { margin-top: 0; }
+.hint { font-weight: 400; color: var(--muted); }
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+button {
+  margin-top: 14px;
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.55; cursor: progress; }
+
+.demo-note { margin: 12px 0 0; color: var(--muted); font-size: 13px; }
+
+.meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--chip);
+  font-size: 12px;
+  font-weight: 600;
+}
+.chip.status-completed { color: var(--ok); }
+.chip.status-failed { color: var(--err); }
+.chip.status-started, .chip.status-routed { color: var(--warn); }
+
+.error-box {
+  border: 1px solid var(--err);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 8%, transparent);
+}
+
+.result-block { margin: 14px 0; }
+.result-block > .k {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted); margin-bottom: 3px;
+}
+.result-block ul { margin: 4px 0; padding-left: 20px; }
+.option-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+.option-card h4 { margin: 0 0 4px; font-size: 14px; }
+.pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 520px) { .pros-cons { grid-template-columns: 1fr; } }
+
+.trace { margin: 0; padding-left: 20px; }
+.trace li { margin: 3px 0; }
+.trace .et { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; }
+.trace .ts { color: var(--muted); font-size: 12px; margin-left: 6px; }
+.trace .em { color: var(--muted); font-size: 12px; }
+
+.recent { list-style: none; margin: 0; padding: 0; }
+.recent li {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
+  padding: 8px 4px; border-bottom: 1px solid var(--line); cursor: pointer;
+}
+.recent li:hover { background: var(--chip); }
+.recent .rq { flex: 1 1 240px; }
+.recent .rt, .recent .rs, .recent .rd { font-size: 12px; color: var(--muted); }
+.recent .empty { color: var(--muted); cursor: default; }
+.recent .empty:hover { background: transparent; }

@@ -15,6 +15,13 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "fastapi>=0.110",
+    "httpx>=0.27",
+]
+# Serve the local web UI.
+web = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
 ]
 # Only needed to run the Anthropic provider against the real API.
 # Not required for development or the test suite (mock mode is the default).

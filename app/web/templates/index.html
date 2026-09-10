@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DecisionForge</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>DecisionForge</h1>
+    <p class="tagline">
+      Single-hop multi-agent routing &mdash; one orchestrator call, one specialist
+      call, deterministic everything else.
+    </p>
+  </header>
+
+  <main class="layout">
+    <section class="panel" id="request-panel">
+      <h2>New request</h2>
+      <form id="run-form">
+        <label for="user_request">Request</label>
+        <textarea id="user_request" name="user_request" rows="3"
+          placeholder="e.g. Compare PostgreSQL and MongoDB for a small SaaS startup."
+          required></textarea>
+
+        <label for="provided_context">
+          Context <span class="hint">(optional; required for a brief)</span>
+        </label>
+        <textarea id="provided_context" name="provided_context" rows="4"
+          placeholder="Paste findings or material for the brief specialist to transform."></textarea>
+
+        <button type="submit" id="submit-btn">Run</button>
+      </form>
+      <p class="demo-note" id="demo-note"></p>
+    </section>
+
+    <section class="panel" id="result-panel" hidden>
+      <h2>Result</h2>
+      <div id="result-meta" class="meta-row"></div>
+      <div id="result-body"></div>
+
+      <h3>Execution trace</h3>
+      <ol id="trace" class="trace"></ol>
+    </section>
+
+    <section class="panel" id="recent-panel">
+      <h2>Recent runs</h2>
+      <ul id="recent-list" class="recent"></ul>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
