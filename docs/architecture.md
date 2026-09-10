@@ -10,6 +10,23 @@ A user submits a request. An **OrchestratorAgent** classifies it and selects
 exactly one of three specialist agents. That specialist does the work. Everything
 after the specialist returns is deterministic Python.
 
+```mermaid
+flowchart TD
+    U[User request] --> O[OrchestratorAgent<br/>Claude call #1 — routing]
+    O --> RD[RoutingDecision]
+    RD --> DP[deterministic Python<br/>dispatch]
+    DP --> SP[optional SearchProvider<br/>research / comparison only<br/>0 Claude calls]
+    SP --> SK[route → skill<br/>static mapping]
+    SK --> SPEC{{exactly one specialist<br/>Claude call #2}}
+    SPEC --> RA[ResearchAgent]
+    SPEC --> CA[ComparisonAgent]
+    SPEC --> BA[BriefAgent]
+    RA --> R[deterministic Python<br/>format · persist · trace]
+    CA --> R
+    BA --> R
+    R --> Out[Structured result + event trace]
+```
+
 ```
 User
   |
@@ -550,9 +567,29 @@ server is a later, user-driven change (`create_app` with a service built from
 `create_model_provider(ModelConfig.from_env())`).
 
 `POST /api/runs` returns the run **and** its full event trace (`RunResult` =
-flat run fields + `events`), so the browser renders a completed run from one
-response — no follow-up `GET`. `GET /api/runs` / `GET /api/runs/{id}` back the
-recent-runs list (empty / 404 when persistence is disabled).
+flat run fields + `events` + deterministic demo metadata: `selected_skill` from
+the route→skill map, `llm_calls` counted from the trace, `llm_calls_max = 2`), so
+the browser renders a completed run from one response — no follow-up `GET`.
+`GET /api/runs` / `GET /api/runs/{id}` back the recent-runs list (empty / 404
+when persistence is disabled). `GET /api/health` reports the safe config
+(model provider label, persistence mode, `max_llm_calls`).
+
+### The demo frontend (Phase 10)
+
+Vanilla HTML/CSS/JS, two information layers:
+
+- **Primary (non-technical):** human-readable chips (Route, Specialist, Skill,
+  Search used/skipped, Confidence, `LLM calls 2/2`), a *"Why this agent?"* card
+  showing `RoutingDecision.reasoning` verbatim, and the structured result
+  rendered per route (no raw JSON).
+- **Technical details** (collapsible): architecture line, execution facts (run
+  id, route, specialist class, skill, search, persistence, provider), cost
+  controls (`retries 0`, `fallback 0`, `parallel 0`, `2/2`), the event trace with
+  friendly labels + raw ids, and an optional raw-JSON block.
+
+A **deterministic execution-path diagram** is built client-side from the run
+metadata — it shows only the stages that actually ran (a Brief run has no Search
+stage). No LLM generates it.
 
 ### Not in this phase
 
@@ -588,9 +625,11 @@ Browser
   the default (mock) mode.
 - **`app/web/deployment.py`** — reads process env only (`ModelConfig.from_env(use_dotenv=False)`,
   `SearchConfig.from_env()`, `PERSISTENCE_ENABLED`). `MODEL_PROVIDER=mock`
-  (default) → `DemoModelProvider`; `MODEL_PROVIDER=anthropic` → the real provider
-  (needs `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL`; billable; still exactly 2 LLM
-  calls). Search is off unless `SEARCH_PROVIDER=duckduckgo`.
+  (default) → `DemoModelProvider` **+ `DemoSearchProvider`** (offline canned
+  search, so the demo trace shows the search step with no network);
+  `MODEL_PROVIDER=anthropic` → the real provider (needs `ANTHROPIC_API_KEY` +
+  `ANTHROPIC_MODEL`; billable; still exactly 2 LLM calls) **with search off**
+  unless `SEARCH_PROVIDER=duckduckgo` (real, needs `ddgs`).
 - **`requirements.txt`** — the production deps Vercel installs (`pydantic`,
   `pyyaml`, `fastapi`; `anthropic` / `ddgs` only if the matching mode is
   enabled). `pyproject.toml` extras remain for local dev/test.
@@ -743,6 +782,14 @@ The project does **not** aim to mechanically implement every multi-agent pattern
   `RunOutcome` (record + events) assembled in-memory, `POST /api/runs` returns
   `RunResult` (run + trace, one response), `GET /api/health`, `requirements.txt`,
   `vercel.json`, `tests/web/test_deployment.py`.
+- **Phase 10** — demo & portfolio polish (§15): two-layer demo frontend (primary
+  + Technical Details), deterministic execution-path diagram, friendly event
+  labels, `RunResult` demo metadata (`selected_skill`, `llm_calls`,
+  `llm_calls_max`), example-prompt buttons, `DemoSearchProvider` (offline canned
+  search so the demo shows the search step), a deterministic evaluation harness
+  (`app/evaluation/`, `scripts/eval_demo.py`, `tests/evaluation/`),
+  `docs/demo-guide.md` + `docs/demo-scenarios.md`, and a portfolio README.
+  No runtime architecture changed.
 
 ### Not implemented yet
 

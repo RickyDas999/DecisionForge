@@ -44,7 +44,7 @@ from app.tools.search import (
     create_search_provider,
 )
 from app.web.app import create_app
-from app.web.demo_provider import DemoModelProvider
+from app.web.demo_provider import DemoModelProvider, DemoSearchProvider
 
 _TRUE = {"1", "true", "yes", "on"}
 
@@ -67,10 +67,16 @@ def _model_provider(config: ModelConfig) -> ModelProvider:
     return create_model_provider(config)
 
 
-def _search_provider(config: SearchConfig) -> SearchProvider | None:
+def _search_provider(
+    config: SearchConfig, model_config: ModelConfig
+) -> SearchProvider | None:
     if config.provider is SearchProviderType.DUCKDUCKGO:
         return create_search_provider(config)  # lazy ddgs import (only on .search())
-    return None  # no automatic search in the deployed demo
+    if model_config.provider is ModelProviderType.MOCK:
+        # Offline demo mode: show the search step in the execution trace without
+        # any network. Real Claude mode stays search-free unless explicitly set.
+        return DemoSearchProvider()
+    return None
 
 
 def _repository(persistence_enabled: bool) -> RunRepository:
@@ -109,7 +115,7 @@ def create_deployment_app() -> FastAPI:
     dispatcher = create_dispatcher(
         _model_provider(model_config),
         skill_registry=_skill_registry(),
-        search_provider=_search_provider(search_config),
+        search_provider=_search_provider(search_config, model_config),
     )
     service = DecisionForgeService(dispatcher, repository)
     return create_app(

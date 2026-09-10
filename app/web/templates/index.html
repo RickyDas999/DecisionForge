@@ -8,16 +8,49 @@
 </head>
 <body>
   <header class="site-header">
-    <h1>DecisionForge</h1>
-    <p class="tagline">
-      Single-hop multi-agent routing &mdash; one orchestrator call, one specialist
-      call, deterministic everything else.
-    </p>
+    <div class="wrap">
+      <h1>DecisionForge</h1>
+      <p class="tagline">
+        Ask a decision-oriented question. One orchestrator routes it to exactly
+        one specialist agent, which returns a structured answer.
+      </p>
+      <p class="arch-summary">
+        <strong>Single-hop multi-agent architecture:</strong> the orchestrator
+        classifies your request and hands it to <em>one</em> specialist &mdash;
+        never a chain, never a loop. Every successful request uses
+        <strong>at most two LLM calls</strong> (1 routing + 1 specialist);
+        everything else is deterministic Python.
+      </p>
+    </div>
   </header>
 
-  <main class="layout">
+  <main class="wrap">
+
+    <section class="agents" aria-label="The specialist agents">
+      <article class="agent-card">
+        <h3>Research Agent</h3>
+        <p>Investigates and explains a topic; returns findings, sources and limitations.</p>
+      </article>
+      <article class="agent-card">
+        <h3>Comparison Agent</h3>
+        <p>Compares alternatives, weighs tradeoffs, and recommends an option with a confidence level.</p>
+      </article>
+      <article class="agent-card">
+        <h3>Brief Agent</h3>
+        <p>Transforms supplied material into a concise executive brief with action items.</p>
+      </article>
+    </section>
+
     <section class="panel" id="request-panel">
-      <h2>New request</h2>
+      <h2>Ask DecisionForge</h2>
+
+      <div class="examples" id="examples">
+        <span class="examples-label">Try an example:</span>
+        <button type="button" class="ex" data-example="research">Research</button>
+        <button type="button" class="ex" data-example="comparison">Comparison</button>
+        <button type="button" class="ex" data-example="brief">Brief</button>
+      </div>
+
       <form id="run-form">
         <label for="user_request">Request</label>
         <textarea id="user_request" name="user_request" rows="3"
@@ -25,29 +58,80 @@
           required></textarea>
 
         <label for="provided_context">
-          Context <span class="hint">(optional; required for a brief)</span>
+          Context <span class="hint">(optional &mdash; required when asking for a brief)</span>
         </label>
         <textarea id="provided_context" name="provided_context" rows="4"
-          placeholder="Paste findings or material for the brief specialist to transform."></textarea>
+          placeholder="Paste the material the Brief Agent should transform."></textarea>
 
-        <button type="submit" id="submit-btn">Run</button>
+        <button type="submit" id="submit-btn">Run request</button>
       </form>
       <p class="demo-note" id="demo-note"></p>
     </section>
 
-    <section class="panel" id="result-panel" hidden>
-      <h2>Result</h2>
-      <div id="result-meta" class="meta-row"></div>
+    <section class="panel loading" id="loading" hidden aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <p class="loading-title">DecisionForge is processing your request&hellip;</p>
+      <ol class="loading-steps">
+        <li>Routing the request</li>
+        <li>Selecting a specialist</li>
+        <li>Processing the response</li>
+      </ol>
+    </section>
+
+    <section class="panel result" id="result-panel" hidden>
+      <div class="chips" id="result-chips"></div>
+
+      <div class="why-card" id="why-card" hidden>
+        <div class="k">Why this agent?</div>
+        <p id="why-text"></p>
+      </div>
+
       <div id="result-body"></div>
 
-      <h3>Execution trace</h3>
-      <ol id="trace" class="trace"></ol>
+      <div class="flow" id="flow" aria-label="Execution path"></div>
+
+      <details class="tech" id="tech">
+        <summary>Technical details &mdash; how DecisionForge processed this request</summary>
+        <div class="tech-body">
+          <div class="tech-group">
+            <h4>Architecture</h4>
+            <p>Orchestrator &rarr; exactly one specialist. Deterministic Python
+              owns routing, the search tool, skill selection, formatting and the
+              event trace.</p>
+          </div>
+          <div class="tech-group">
+            <h4>Execution</h4>
+            <dl id="tech-execution"></dl>
+          </div>
+          <div class="tech-group">
+            <h4>Cost controls</h4>
+            <dl id="tech-cost"></dl>
+          </div>
+          <div class="tech-group">
+            <h4>Event trace</h4>
+            <ol class="trace" id="trace"></ol>
+          </div>
+          <details class="raw">
+            <summary>Raw structured result (JSON)</summary>
+            <pre id="raw-json"></pre>
+          </details>
+        </div>
+      </details>
     </section>
 
     <section class="panel" id="recent-panel">
-      <h2>Recent runs</h2>
+      <h2>Recent runs <span class="hint" id="recent-note"></span></h2>
       <ul id="recent-list" class="recent"></ul>
     </section>
+
+    <footer class="page-footer">
+      <p>
+        DecisionForge &mdash; a portfolio project demonstrating constrained,
+        cost-conscious multi-agent design. Deterministic dispatch, progressive
+        Agent Skills, an optional deterministic search tool, SQLite tracing, and
+        a FastAPI UI deployable on Vercel.
+      </p>
+    </footer>
   </main>
 
   <script src="/static/app.js"></script>

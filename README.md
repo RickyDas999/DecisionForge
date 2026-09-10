@@ -1,230 +1,243 @@
 # DecisionForge
 
-A local-first, portfolio-quality application that demonstrates a **constrained
-multi-agent architecture** while keeping Claude token/API usage low.
+A constrained, cost-conscious multi-agent application. You ask a
+decision-oriented question; one **orchestrator** classifies it and routes it to
+**exactly one** of three specialist agents, which returns a structured answer.
+Everything else — the search tool, skill selection, formatting, persistence, the
+web UI — is deterministic Python.
 
-## How it works
+Live-demo ready: a FastAPI + vanilla-JS frontend that shows the route, the
+specialist, whether search ran, the structured result, and the full execution
+trace, deployable on Vercel.
 
-```
-User request
-   -> OrchestratorAgent   classifies the request (1 Claude call)
-   -> exactly one of:
-        ResearchAgent      investigate / gather / explain a topic
-        ComparisonAgent    compare options, evaluate tradeoffs, recommend
-        BriefAgent         turn supplied context into an executive brief / memo
-      (the selected specialist: 1 Claude call)
-   -> deterministic Python   validation, formatting, storage, events, UI
-   -> Result
-```
-
-- **One OrchestratorAgent + three specialist agents.**
-- **Single-hop routing:** the orchestrator selects exactly one specialist; the
-  specialists never call other agents.
-- **At most 2 LLM calls per request** (orchestrator + one specialist). No agent
-  loops, no LLM retry loops, no parallel LLM calls, no multi-stage pipeline.
-- **Mock or Anthropic model provider**, behind one `ModelProvider` abstraction —
-  agents never import a vendor SDK.
-- **Zero-cost mock development mode** is the default.
-
-> An earlier design was a larger multi-stage research/judge/analysis/writer
-> pipeline. It was intentionally removed to minimize cost, latency, and
-> complexity, and is **not** planned for this version. See
-> `docs/architecture.md` -> "Architecture Reframe".
-
-## Status (Phase 9)
-
-Implemented:
-
-- the model-provider layer (`MockModelProvider`, `AnthropicModelProvider`, config,
-  factory)
-- the routing schema (`AgentRoute`, `RoutingInput`, `RoutingDecision`)
-- `OrchestratorAgent` (single structured model call -> `RoutingDecision`)
-- the three **leaf** specialist agents — `ResearchAgent`, `ComparisonAgent`,
-  `BriefAgent` — each one structured model call, no delegation
-- current-architecture structured models (`app/models/{specialists,dispatch,search}.py`)
-- **`DecisionForgeDispatcher`** — the deterministic single-hop path: one
-  orchestrator call, then exactly one specialist call, then a typed
-  `DispatchResult`. No fallback, no retry, no loop, no parallelism.
-- **local Agent Skills** — a `skills/` tree with YAML-frontmatter `SKILL.md`
-  files and three-stage progressive disclosure, a deterministic
-  `LocalSkillRegistry`, a **static route→skill mapping** (no LLM picks the
-  skill), and skill-aware specialist prompts.
-- **deterministic search-tool layer** — a `SearchProvider` abstraction with an
-  offline `MockSearchProvider` (the default) and an **optional no-key**
-  `DuckDuckGoSearchProvider`. When a search provider is configured, the RESEARCH
-  and COMPARISON routes gather external evidence *before* their single model
-  call and pass it in via `provided_context` (deterministically size-capped);
-  **BRIEF never searches**. Search adds **zero** LLM calls; a search failure
-  stops the request with no retry and no fallback.
-- **local SQLite persistence + execution tracing** — `DecisionForgeService`
-  wraps the dispatcher, records each run (`RunRecord`: route, selected
-  specialist, search usage, status, serialized result, error, timestamps) and a
-  chronological event stream (`run.started` → `route.selected` →
-  optional `search.*` → `specialist.*` → `run.completed` / `run.failed`) into a
-  local `sqlite3` database. Deterministic file I/O — **zero** model calls; a
-  failed run is stored and the original exception is re-raised unchanged.
-- **web interface** — a small FastAPI app + plain HTML/CSS/JS browser UI: submit
-  a request (+ optional context), see the route, selected specialist, whether
-  search ran, the structured result rendered per route, the execution trace, and
-  (in local mode) recent runs. The web layer adds **zero** LLM calls. `POST
-  /api/runs` returns the run *and* its trace in one response, so the UI renders
-  without a follow-up request.
-- **Vercel-deployable** — `api/index.py` + `app/web/deployment.py` run the same
-  app as a single serverless function. Import-safe (no network, no LLM call, no
-  SQLite file, no credentials in mock mode). Deployed runs are **stateless**
-  (`NullRunRepository`) — no hosted database; durable run history stays a local
-  feature. `GET /api/health` reports the safe config. See *Deploy to Vercel*
-  below.
-- demos: `scripts/web_demo.py`, `scripts/persistence_demo.py`,
-  `scripts/tools_demo.py`, `scripts/skills_demo.py`, `scripts/dispatch_demo.py`;
-  all zero-cost by default.
-
-Not claimed: DecisionForge has **no autonomous research** — Claude never decides
-to call a tool; deterministic Python does, once, before the specialist.
-
-Not implemented yet:
-
-- a hosted database for durable Vercel history (stateless by design)
-- live event streaming (SSE/WebSockets) in the UI
-- authentication / accounts
-- HTTP/A2A transport
-- full webpage scraping / crawling
-- autonomous / model-driven tool use
-
-## Model provider & cost
-
-- **Mock is the default and needs no credentials.** The test suite and the
-  default demos make no network calls.
-- **Anthropic mode is opt-in:** set `MODEL_PROVIDER=anthropic` with
-  `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`, and install the extra
-  (`pip install -e ".[anthropic]"`). This uses the Anthropic API and **may incur
-  charges billed to your Anthropic account**.
-- An Anthropic API key/account is **separate** from a Claude Code / Claude.ai
-  subscription and is billed differently.
-
-### Using a `.env` file
-
-Copy `.env.example` to `.env` and fill in your key:
-
-```bash
-cp .env.example .env
-# then edit .env:
-#   MODEL_PROVIDER=anthropic
-#   ANTHROPIC_API_KEY=sk-ant-...
-#   ANTHROPIC_MODEL=<a-model-id>
+```mermaid
+flowchart TD
+    U[User request] --> O[OrchestratorAgent<br/>LLM call #1 — routing]
+    O --> R{AgentRoute}
+    R -->|deterministic Python| S[optional SearchProvider<br/>0 LLM calls]
+    S --> K[route → skill<br/>static mapping]
+    K --> X{{exactly one specialist<br/>LLM call #2}}
+    X --> RA[ResearchAgent]
+    X --> CA[ComparisonAgent]
+    X --> BA[BriefAgent]
+    RA --> D[deterministic result<br/>+ SQLite trace]
+    CA --> D
+    BA --> D
+    D --> Res[Structured result + event trace]
 ```
 
-`ModelConfig.from_env()` (used by every `--live` script path) auto-loads the
-nearest `.env` at or above the working directory. Real environment variables
-always take precedence over the file, and `.env` is git-ignored so your key is
-never committed. Automated tests and the default (mock) demos do not read `.env`
-and stay zero-cost.
+## Overview
 
-## Requirements
+DecisionForge answers three kinds of software-decision question:
 
-- Python 3.12
+| Ask | Route | Specialist |
+|---|---|---|
+| investigate / explain a topic | `research` | **Research Agent** |
+| compare options, weigh tradeoffs, recommend one | `comparison` | **Comparison Agent** |
+| turn supplied material into an executive brief | `brief` | **Brief Agent** |
 
-## Install
+The orchestrator makes the routing decision semantically (one LLM call). A
+static `route → skill` table and a static `SEARCH_ENABLED_ROUTES` set do the
+rest — no second model call to pick a skill or decide whether to search.
+
+## Why this architecture
+
+- **A single generic prompt** handles these requests unpredictably and can't
+  specialize.
+- **A full agent swarm** (planner, judge, loops, fan-out) is expensive, slow,
+  and hard to reason about. An earlier version of this project was exactly that;
+  it was deliberately removed (see `docs/architecture.md` → *Architecture
+  Reframe*).
+- **This design** is the small middle: controlled hierarchical delegation — one
+  parent, one child per request — with a hard ceiling on cost.
+
+## Architecture
+
+```
+User
+ → OrchestratorAgent        semantic routing            (LLM call #1)
+ → AgentRoute
+ → deterministic Python      dispatch, no second routing step
+ → optional SearchProvider   research / comparison only  (0 LLM calls)
+ → route → skill (static)    SKILL.md body → specialist prompt
+ → exactly one specialist    the work                    (LLM call #2)
+ → deterministic Python      format, persist, trace
+ → structured result + event trace
+```
+
+**Hard rules** (enforced by tests): max **2 LLM calls** per successful request;
+**no** retries, loops, fallback agents, or parallel LLM calls; specialists never
+call other agents; the LLM only does semantic work.
+
+Full detail and the deployment topology: **`docs/architecture.md`**.
+
+## Agents
+
+Exactly four logical agents:
+
+- **OrchestratorAgent** — classifies the request into one `AgentRoute`. One
+  structured model call; returns a `RoutingDecision` (route + short reasoning).
+  Does not answer, research, or invoke a specialist.
+- **ResearchAgent** — investigates/explains a topic; returns summary, key
+  findings, sources, limitations. Won't claim live research or invent citations
+  when no evidence is supplied.
+- **ComparisonAgent** — compares alternatives; returns options with
+  advantages/disadvantages, tradeoffs, a recommendation, rationale, a confidence
+  value, limitations.
+- **BriefAgent** — transforms user-supplied context into a titled executive
+  brief with key points and action items. Requires context; performs no
+  research.
+
+Each specialist is a leaf: one model call, no delegation.
+
+## Agent Skills
+
+`skills/{research,comparison,executive-brief}/` — each a `SKILL.md` (YAML
+frontmatter + Markdown body) with optional `references/` and `scripts/`. Loaded
+with **three-stage progressive disclosure**:
+
+1. **Discovery** — metadata (name, description) only.
+2. **Activation** — the SKILL.md body, injected into the selected specialist's
+   system prompt.
+3. **Extension** — references / scripts, only on explicit request.
+
+The route determines the skill (`app/skills/mapping.py`) — deterministic, no LLM.
+
+## Deterministic tools
+
+`SearchProvider` gathers external evidence **before** the specialist call:
+
+- `MockSearchProvider` / `DemoSearchProvider` — offline, deterministic (the
+  default).
+- `DuckDuckGoSearchProvider` — optional, no API key (`pip install -e ".[search]"`,
+  `SEARCH_PROVIDER=duckduckgo`).
+
+Research and Comparison are search-eligible; **Brief never searches**. Evidence is
+rendered to plain text with deterministic size caps (≤5 results, ≤500 chars each,
+~2500 total) before it reaches the model. Search adds **zero** LLM calls; a
+search failure stops the request with no retry and no fallback.
+
+## Cost-conscious design
+
+| Lever | Value |
+|---|---|
+| LLM calls per successful request | **2** (1 routing + 1 specialist) |
+| Retries | 0 |
+| Fallback agents | 0 |
+| Parallel LLM calls | 0 |
+| LLM calls added by search / skills / persistence / the web layer | 0 |
+
+The UI shows `LLM calls: 2 / 2 max` on every result. This is not autonomous
+multi-step reasoning — there are no loops, no self-critique, and the model never
+decides to use a tool.
+
+## Tech stack
+
+- **Python 3.12**, `pydantic` v2 for every typed contract.
+- **FastAPI** + vanilla HTML/CSS/JS (no framework, no build step).
+- Standard-library `sqlite3` for run + event persistence.
+- `pyyaml` for SKILL.md frontmatter.
+- Optional: `anthropic` (real model calls), `ddgs` (real web search),
+  `uvicorn` (local server).
+- No LangChain / LlamaIndex / agent framework — the orchestration layer is ~100
+  lines of deterministic Python.
+
+## Local development
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev]"          # pydantic, pyyaml, fastapi, pytest, httpx
 ```
 
-Optional, only for real Anthropic calls: `pip install -e ".[dev,anthropic]"`.
+Run the web UI (offline, zero cost):
 
-## Test
+```bash
+pip install -e ".[dev,web]"      # adds uvicorn
+python scripts/web_demo.py       # http://127.0.0.1:8000
+```
+
+Zero-cost CLI demos:
+
+```bash
+python scripts/dispatch_demo.py      # end-to-end: request → orchestrator → [search] → one specialist
+python scripts/eval_demo.py          # routing accuracy + specialist contract checks
+python scripts/skills_demo.py        # progressive disclosure
+python scripts/tools_demo.py         # search tool + context builder
+python scripts/persistence_demo.py   # one run persisted to a temp SQLite DB + its events
+```
+
+Real Claude / real search are opt-in and billable — see `docs/architecture.md`
+and the `--live` / `--real-search` flags in the demo scripts. **Do not run
+`--live` unless you intend to spend API credit.**
+
+## Vercel deployment
+
+DecisionForge deploys as a single Python serverless function (`api/index.py`) —
+no database, no second service.
+
+1. **Push this repo to GitHub.**
+2. **Import it into Vercel** (New Project → import). Vercel detects Python from
+   `api/index.py` and installs `requirements.txt`. If Project Settings shows an
+   old Python version, set it to **3.12** and redeploy.
+3. **Set Environment Variables:**
+
+   *Offline demo* — no credentials, no cost:
+   ```
+   MODEL_PROVIDER=mock
+   PERSISTENCE_ENABLED=false
+   ```
+   *Real Claude demo* — **uses the Anthropic API, may incur charges** (`anthropic`
+   is already in `requirements.txt`):
+   ```
+   MODEL_PROVIDER=anthropic
+   ANTHROPIC_API_KEY=<your key>
+   ANTHROPIC_MODEL=claude-haiku-4-5
+   PERSISTENCE_ENABLED=false
+   ```
+4. **Deploy** (auto-deploys on every push).
+5. **Verify:** open `/` (the UI), then `GET /api/health` →
+   `{"status":"ok","model_provider":"mock|anthropic","persistence_enabled":false,...}`.
+
+The deployment is **stateless** — Vercel's filesystem is ephemeral, so
+`GET /api/runs` returns `[]` and each `POST /api/runs` response carries the full
+result + trace. Durable history is a local feature (`PERSISTENCE_ENABLED=true`).
+A successful request is at most 2 LLM calls in every mode.
+
+## Demo
+
+For the 10-minute live demo:
+
+- **`docs/demo-guide.md`** — a minute-by-minute run sheet (no slides).
+- **`docs/demo-scenarios.md`** — the three scenarios with exact inputs, expected
+  route/skill/search behavior, and the code files to open.
+
+Recommended primary scenario: **Comparison** — it exercises routing, specialist
+selection, the search tool, an Agent Skill, structured output, a recommendation
+with confidence, and the two-call ceiling in one request.
+
+## Testing
 
 ```bash
 pytest
 ```
 
-All tests pass and make **no** network calls (the Anthropic SDK is fully faked in
-tests).
+~300 tests, all offline — the Anthropic SDK and any search backend are mocked;
+SQLite uses temp files. Coverage includes the two-call ceiling per route, skill
+isolation, search policy, stateless vs. persistent modes, the Vercel entrypoint's
+import-safety, and a deterministic routing-evaluation harness
+(`app/evaluation/`, `scripts/eval_demo.py`).
 
-## Demos (zero cost)
+## Limitations
 
-```bash
-python scripts/dispatch_demo.py         # END-TO-END: request -> orchestrator -> [search] -> one specialist -> result
-python scripts/persistence_demo.py      # one run persisted to a temp SQLite DB + its event stream
-python scripts/tools_demo.py            # search tool: MockSearchProvider + build_search_context (file/CPU only)
-python scripts/skills_demo.py           # Agent Skills: discovery -> activation -> extension (file I/O only)
-python scripts/orchestrator_demo.py     # routes 3 sample requests via MockModelProvider
-python scripts/specialists_demo.py      # runs all 3 leaf specialists via MockModelProvider
-python scripts/model_smoke_test.py      # exercises both provider methods via MockModelProvider
-```
-
-Database location: `DECISIONFORGE_DB_PATH`, else `./data/decisionforge.db`
-(`data/` and `*.db` are git-ignored).
-
-## Web UI (zero cost)
-
-```bash
-pip install -e ".[dev,web]"
-python scripts/web_demo.py          # http://127.0.0.1:8000
-# equivalent: uvicorn --factory app.web.bootstrap:create_demo_app --reload
-```
-
-The default server is fully offline: a canned `DemoModelProvider`, an offline
-mock search provider, and local SQLite — no Anthropic, no network, no
-credentials. Submit a request in the browser to see the route, selected
-specialist, whether search ran, the structured result, the execution trace, and
-recent runs. To point the UI at real Claude, build `create_app` with a service
-whose provider comes from `create_model_provider(ModelConfig.from_env())` (real
-API calls, billable) — not wired into the default server.
-
-## Deploy to Vercel
-
-DecisionForge runs on Vercel as a single Python serverless function
-(`api/index.py`). No database, no second service.
-
-1. **Push this repo to GitHub.**
-2. **Import the repository into Vercel** (New Project → import). Vercel detects
-   Python from `api/index.py` and installs `requirements.txt`. If Project
-   Settings shows an old Python version, set it to **3.12**.
-3. **Set Environment Variables** (Project → Settings → Environment Variables):
-
-   *Offline demo* (no credentials, no cost):
-   ```
-   MODEL_PROVIDER=mock
-   PERSISTENCE_ENABLED=false
-   ```
-
-   *Real Claude demo* (**uses the Anthropic API — may incur API charges**; also
-   add `anthropic>=0.40` to `requirements.txt`):
-   ```
-   MODEL_PROVIDER=anthropic
-   ANTHROPIC_API_KEY=<your key>
-   ANTHROPIC_MODEL=<a model id, e.g. claude-haiku-4-5>
-   PERSISTENCE_ENABLED=false
-   ```
-4. **Deploy.**
-5. **Verify:** open `/` (the UI) and `GET /api/health` (should report
-   `{"status":"ok","model_provider":"mock|anthropic","persistence_enabled":false}`).
-
-Notes:
-
-- The Vercel deployment **does not use SQLite** — its filesystem is ephemeral, so
-  runs are stateless (`GET /api/runs` returns `[]`). Each `POST /api/runs`
-  response already contains the full result and event trace.
-- Local SQLite run history is still available in local mode
-  (`PERSISTENCE_ENABLED=true`).
-- Live web search stays off on Vercel unless you set `SEARCH_PROVIDER=duckduckgo`
-  and add `ddgs>=6.0` to `requirements.txt`.
-- A successful request is still **at most 2 LLM calls** (orchestrator + one
-  specialist) in every mode.
-
-Each script has an explicit `--live` mode that makes real, potentially billable
-Anthropic requests and requires `MODEL_PROVIDER=anthropic` plus credentials.
-`dispatch_demo.py --live "<request>"` makes **at most 2** calls (orchestrator +
-one specialist; `--context "..."` needed if routing picks brief);
-`orchestrator_demo.py --live "<request>"` makes exactly one call;
-`specialists_demo.py --live --agent <name> "<request>"` makes exactly one call
-(and `--agent brief` also needs `--context "..."`). Do not run `--live` unless
-you intend to spend API credit.
-
-`tools_demo.py --real-search "<query>"` performs **one live DuckDuckGo search**
-(no Anthropic call, no key) — install the extra with `pip install -e ".[search]"`.
-The `--live` dispatch demo does not run search; use `tools_demo.py` to exercise
-the real search provider on its own.
+- **Not autonomous.** No multi-step reasoning, no loops, no self-critique, no
+  model-driven tool use — by design.
+- **The offline demo's model outputs are canned** (`DemoModelProvider`). Routing,
+  search, skills, persistence and the trace are real; the answers are
+  placeholders. Set `MODEL_PROVIDER=anthropic` for real answers.
+- **Deployed history is stateless.** Durable run history needs local mode or a
+  future `RunRepository` backed by a hosted database.
+- **Live web search** is off by default; the DuckDuckGo provider is a snippet
+  fetcher, not a crawler.
+- **No authentication** — a deployed instance in `anthropic` mode will spend your
+  API credit for anyone with the URL.

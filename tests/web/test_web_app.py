@@ -156,6 +156,12 @@ def test_research_run_succeeds_and_is_persisted(tmp_path) -> None:
     assert body["result"]["topic"] == "t"
     assert body["result"]["key_findings"] == ["kf"]
 
+    # demo metadata for the frontend (deterministic — no model call)
+    assert body["selected_skill"] == "research"
+    assert body["llm_calls"] == 2
+    assert body["llm_calls_max"] == 2
+    assert body["routing_reasoning"]
+
     # persisted
     record = rig.repo.get_run(body["run_id"])
     assert record is not None and record.status.value == "completed"
@@ -321,3 +327,42 @@ def test_unknown_run_returns_404(tmp_path) -> None:
     resp = rig.client.get("/api/runs/does-not-exist")
     assert resp.status_code == 404
     assert resp.json()["error_type"] == "RunNotFound"
+
+
+# --------------------------------------------------------------------------- #
+# Demo frontend surface
+# --------------------------------------------------------------------------- #
+def test_index_page_has_demo_scaffolding(tmp_path) -> None:
+    rig = make_rig(tmp_path, _routing(AgentRoute.RESEARCH), research=[_research()])
+    html = rig.client.get("/").text
+    for needle in (
+        "Research Agent",
+        "Comparison Agent",
+        "Brief Agent",
+        'data-example="comparison"',
+        "Technical details",
+        "at most two LLM calls",
+    ):
+        assert needle in html
+
+
+def test_health_reports_safe_config_only(tmp_path) -> None:
+    rig = make_rig(tmp_path, _routing(AgentRoute.RESEARCH), research=[_research()])
+    health = rig.client.get("/api/health").json()
+    assert health["status"] == "ok"
+    assert health["max_llm_calls"] == 2
+    assert health["persistence_enabled"] is True  # SQLite repo in this rig
+    assert "api_key" not in str(health).lower()
+    assert "sk-ant" not in str(health)
+
+
+def test_brief_route_result_exposes_skill_and_no_search(tmp_path) -> None:
+    rig = make_rig(tmp_path, _routing(AgentRoute.BRIEF), brief=[_brief()])
+    body = rig.client.post(
+        "/api/runs",
+        json={"user_request": "Make a brief.", "provided_context": "material"},
+    ).json()
+    assert body["selected_skill"] == "executive-brief"
+    assert body["search_used"] is False
+    assert "search.started" not in [e["event_type"] for e in body["events"]]
+    assert body["llm_calls"] == 2

@@ -77,6 +77,8 @@ def create_app(
             "status": "ok",
             "model_provider": model_provider_label,
             "persistence_enabled": persistence_enabled,
+            "max_llm_calls": 2,
+            "architecture": "single-hop: orchestrator -> exactly one specialist",
         }
 
     @app.post("/api/runs", response_model=RunResult)

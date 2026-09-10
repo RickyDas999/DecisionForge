@@ -70,11 +70,10 @@ def test_api_index_health_is_mock_and_stateless_by_default(monkeypatch) -> None:
         monkeypatch.delenv(var, raising=False)
     client = TestClient(create_deployment_app())
     health = client.get("/api/health").json()
-    assert health == {
-        "status": "ok",
-        "model_provider": "mock",
-        "persistence_enabled": False,
-    }
+    assert health["status"] == "ok"
+    assert health["model_provider"] == "mock"
+    assert health["persistence_enabled"] is False
+    assert health["max_llm_calls"] == 2
 
 
 def test_health_never_leaks_secrets(monkeypatch) -> None:

@@ -17,6 +17,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from app.models.routing import AgentRoute, RoutingDecision
+from app.models.search import SearchResponse, SearchResult
 from app.models.specialists import (
     BriefResponse,
     ComparisonOption,
@@ -24,6 +25,7 @@ from app.models.specialists import (
     ResearchResponse,
 )
 from app.providers.model import ModelProvider
+from app.tools.search import MockSearchProvider
 
 _COMPARISON_HINTS = (" vs ", " vs.", "compare ", " versus ", " or ")
 _BRIEF_HINTS = ("brief", "memo", "summari", "leadership", "executive")
@@ -118,3 +120,36 @@ class DemoModelProvider(ModelProvider):
         raise NotImplementedError(  # pragma: no cover
             f"DemoModelProvider has no canned response for {response_model.__name__}"
         )
+
+
+class DemoSearchProvider(MockSearchProvider):
+    """Offline canned search results, so the demo shows the search step running.
+
+    No network. Used by the demo web app for RESEARCH / COMPARISON requests.
+    """
+
+    async def search(self, query: str, *, max_results: int = 5) -> SearchResponse:
+        self.responses = [
+            SearchResponse(
+                query=query,
+                results=[
+                    SearchResult(
+                        title="Illustrative source A (offline demo)",
+                        url="https://example.com/a",
+                        snippet=(
+                            "A short deterministic snippet. Set "
+                            "SEARCH_PROVIDER=duckduckgo + install the '[search]' "
+                            "extra for real web results."
+                        ),
+                        source="example.com",
+                    ),
+                    SearchResult(
+                        title="Illustrative source B (offline demo)",
+                        url="https://example.com/b",
+                        snippet="A second deterministic snippet for the demo.",
+                        source="example.com",
+                    ),
+                ],
+            )
+        ]
+        return await super().search(query, max_results=max_results)
