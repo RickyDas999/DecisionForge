@@ -21,16 +21,20 @@ from app.providers.model import ModelProvider
 from app.skills.base import SkillRegistry
 from app.skills.local import LocalSkillRegistry
 from app.skills.mapping import skill_for_route
+from app.tools.search import SearchProvider
 
 
 def create_dispatcher(
     model_provider: ModelProvider,
     skill_registry: SkillRegistry | None = None,
+    search_provider: SearchProvider | None = None,
 ) -> DecisionForgeDispatcher:
     """Build a dispatcher whose four agents share ``model_provider``.
 
     If ``skill_registry`` is given, each specialist receives its route's activated
-    skill instructions and nothing else.
+    skill instructions and nothing else. If ``search_provider`` is given, the
+    RESEARCH and COMPARISON routes gather external evidence before their single
+    model call (BRIEF never does). Both are deterministic — no extra model calls.
     """
 
     def instructions_for(route: AgentRoute) -> str | None:
@@ -47,6 +51,7 @@ def create_dispatcher(
             model_provider, instructions_for(AgentRoute.COMPARISON)
         ),
         brief_agent=BriefAgent(model_provider, instructions_for(AgentRoute.BRIEF)),
+        search_provider=search_provider,
     )
 
 

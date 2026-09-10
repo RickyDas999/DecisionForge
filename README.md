@@ -31,7 +31,7 @@ User request
 > complexity, and is **not** planned for this version. See
 > `docs/architecture.md` -> "Architecture Reframe".
 
-## Status (Phase 5)
+## Status (Phase 6)
 
 Implemented:
 
@@ -40,24 +40,32 @@ Implemented:
 - the routing schema (`AgentRoute`, `RoutingInput`, `RoutingDecision`)
 - `OrchestratorAgent` (single structured model call -> `RoutingDecision`)
 - the three **leaf** specialist agents — `ResearchAgent`, `ComparisonAgent`,
-  `BriefAgent` — each one structured model call, no tools, no delegation
-- current-architecture structured result models (`app/models/specialists.py`,
-  `app/models/dispatch.py`)
+  `BriefAgent` — each one structured model call, no delegation
+- current-architecture structured models (`app/models/{specialists,dispatch,search}.py`)
 - **`DecisionForgeDispatcher`** — the deterministic single-hop path: one
   orchestrator call, then exactly one specialist call, then a typed
   `DispatchResult`. No fallback, no retry, no loop, no parallelism.
 - **local Agent Skills** — a `skills/` tree with YAML-frontmatter `SKILL.md`
-  files and three-stage progressive disclosure (discovery = metadata only,
-  activation = one `SKILL.md` body, extension = references/scripts on explicit
-  demand), a deterministic `LocalSkillRegistry`, a **static route→skill mapping**
-  (no LLM picks the skill), and skill-aware specialist prompts that receive only
-  their own skill's instructions.
-- demos: `scripts/skills_demo.py` (progressive disclosure) and
-  `scripts/dispatch_demo.py` (end-to-end); both zero-cost by default.
+  files and three-stage progressive disclosure, a deterministic
+  `LocalSkillRegistry`, a **static route→skill mapping** (no LLM picks the
+  skill), and skill-aware specialist prompts.
+- **deterministic search-tool layer** — a `SearchProvider` abstraction with an
+  offline `MockSearchProvider` (the default) and an **optional no-key**
+  `DuckDuckGoSearchProvider`. When a search provider is configured, the RESEARCH
+  and COMPARISON routes gather external evidence *before* their single model
+  call and pass it in via `provided_context` (deterministically size-capped);
+  **BRIEF never searches**. Search adds **zero** LLM calls; a search failure
+  stops the request with no retry and no fallback.
+- demos: `scripts/tools_demo.py` (search + context builder),
+  `scripts/skills_demo.py`, `scripts/dispatch_demo.py`; all zero-cost by default.
+
+Not claimed: DecisionForge has **no autonomous research** — Claude never decides
+to call a tool; deterministic Python does, once, before the specialist.
 
 Not implemented yet:
 
-- real web search / fetch tools (feeding `provided_context`)
+- full webpage scraping / crawling
+- autonomous / model-driven tool use
 - persistence / run history
 - web UI
 - optional HTTP/A2A transport
@@ -117,7 +125,8 @@ tests).
 ## Demos (zero cost)
 
 ```bash
-python scripts/dispatch_demo.py         # END-TO-END: request -> orchestrator -> one specialist -> result
+python scripts/dispatch_demo.py         # END-TO-END: request -> orchestrator -> [search] -> one specialist -> result
+python scripts/tools_demo.py            # search tool: MockSearchProvider + build_search_context (file/CPU only)
 python scripts/skills_demo.py           # Agent Skills: discovery -> activation -> extension (file I/O only)
 python scripts/orchestrator_demo.py     # routes 3 sample requests via MockModelProvider
 python scripts/specialists_demo.py      # runs all 3 leaf specialists via MockModelProvider
@@ -132,3 +141,8 @@ one specialist; `--context "..."` needed if routing picks brief);
 `specialists_demo.py --live --agent <name> "<request>"` makes exactly one call
 (and `--agent brief` also needs `--context "..."`). Do not run `--live` unless
 you intend to spend API credit.
+
+`tools_demo.py --real-search "<query>"` performs **one live DuckDuckGo search**
+(no Anthropic call, no key) — install the extra with `pip install -e ".[search]"`.
+The `--live` dispatch demo does not run search; use `tools_demo.py` to exercise
+the real search provider on its own.

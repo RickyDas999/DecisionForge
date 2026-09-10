@@ -21,6 +21,11 @@ dev = [
 anthropic = [
     "anthropic>=0.40",
 ]
+# Only needed for the real no-key DuckDuckGo search provider.
+# Not required for development or the test suite (mock search is the default).
+search = [
+    "ddgs>=6.0",
+]
 
 [tool.setuptools]
 packages = ["app"]

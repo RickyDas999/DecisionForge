@@ -25,9 +25,12 @@ is not possible)
 - a confidence score between 0.0 and 1.0
 - limitations of the analysis
 
-Use the supplied context when it is available. Do not claim to have done current \
-or external research unless external evidence was provided in the context; if \
-current evidence would be needed and none was supplied, say so in `limitations`.
+Use the supplied context when it is available. It may include deterministic \
+search evidence (results with URLs and snippets) — use it and keep it distinct \
+from your own model knowledge, and do not invent sources or URLs. Do not claim \
+to have done current or external research unless external evidence was provided \
+in the context; if current evidence would be needed and none was supplied, say \
+so in `limitations`.
 
 Do not call another agent. Do not delegate. Do not create a multi-stage \
 workflow.\

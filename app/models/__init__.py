@@ -35,6 +35,7 @@ from app.models.research import (
     Source,
 )
 from app.models.routing import AgentRoute, RoutingDecision, RoutingInput
+from app.models.search import SearchResponse, SearchResult
 from app.models.specialists import (
     BriefInput,
     BriefResponse,
@@ -63,6 +64,9 @@ __all__ = [
     "DispatchRequest",
     "DispatchResult",
     "SpecialistResponse",
+    # --- Current architecture: search tool ---
+    "SearchResponse",
+    "SearchResult",
     # --- Shared ---
     "EventType",
     "RunState",

@@ -81,17 +81,20 @@ single-hop path:
 ```
 User
  -> DispatchRequest
- -> OrchestratorAgent.run()        # 1 LLM call — semantic routing
+ -> OrchestratorAgent.run()          # 1 LLM call — semantic routing
  -> RoutingDecision.route
- -> DecisionForgeDispatcher        # deterministic Python owns selection
- -> exactly one specialist .run()  # 1 LLM call — the work
+ -> DecisionForgeDispatcher          # deterministic Python owns selection
+ -> [RESEARCH/COMPARISON only] SearchProvider.search()  # 0 LLM calls (tool, §13)
+ -> exactly one specialist .run()    # 1 LLM call — the work
  -> DispatchResult
 ```
 
 Once the orchestrator returns a `RoutingDecision`, **deterministic Python owns
 specialist selection** — a single `if route is …` chain, no second semantic step.
+An optional deterministic search step (§13) may add network I/O between routing
+and the specialist call, but never a model call.
 
-- **Maximum 2 LLM calls** per request (1 orchestrator + 1 specialist).
+- **Maximum 2 LLM calls** per request (1 orchestrator + 1 specialist; search is 0).
 - **No fallback agent** — if the specialist, provider, or parsing fails, the
   error propagates; the dispatcher never tries another route or agent.
 - **No retry**, **no loop**, **no parallel execution** — the path is strictly
@@ -355,7 +358,82 @@ skill-aware dispatch.
 check (`title` non-empty, `executive_summary` non-empty, ≥1 `key_points`) — no
 LLM, no imports of Anthropic/network libraries, no correction loop.
 
-## 13. Architecture Reframe
+## 13. Deterministic tool layer (search)
+
+DecisionForge can gather current external evidence for a specialist **before**
+its single model call. This is a *tool*, not an agent.
+
+```
+OrchestratorAgent            (Claude call #1 — routing)
+   -> AgentRoute
+   -> deterministic search policy      (static set: RESEARCH, COMPARISON)
+   -> SearchProvider.search(user_request)   (ordinary Python / network — 0 LLM calls)
+   -> build_search_context(...)             (deterministic string assembly)
+   -> combine_contexts(user_context, search_context)
+   -> selected specialist       (Claude call #2 — the work)
+   -> DispatchResult
+```
+
+### Tools are not agents
+
+`SearchProvider` (`app/tools/search.py`) is an abstract
+`search(query, *, max_results=5) -> SearchResponse`. It imports no
+`ModelProvider`, no agent, no Anthropic SDK, no skill code, no dispatcher code
+(verified by test). There is **no** Anthropic `tool_use`, **no** model-exposed
+tool schema, and **no** ReAct loop. Claude never decides whether or when a tool
+runs — deterministic Python does, before the specialist call.
+
+- `MockSearchProvider` — replays queued `SearchResponse` objects, records calls,
+  zero network. Every automated test uses it.
+- `DuckDuckGoSearchProvider` — optional, free, **no API key**. The `ddgs` package
+  is imported lazily inside `search()`; construction and import do nothing and
+  reach no network. Missing dependency → `SearchConfigurationError`.
+- `SearchConfig` defaults to `provider="mock"`. Real search is selected only by
+  an explicit `SEARCH_PROVIDER=duckduckgo` / config — never auto-enabled because
+  a package happens to be installed.
+
+### Which routes search
+
+`app/tools/policy.py`: `SEARCH_ENABLED_ROUTES = {RESEARCH, COMPARISON}`. **BRIEF
+never searches** — it is a pure transformation of user-supplied material, and a
+brief request makes zero search calls (the search step runs *after* routing, so
+nothing is fetched for a brief). This is a static frozenset; no LLM is consulted.
+
+### The search query
+
+The query is the user's request verbatim
+(`search_provider.search(request.user_request)`). No extra Claude call generates
+or refines it.
+
+### Context size is bounded before it reaches Claude
+
+`build_search_context` (`app/tools/context.py`) renders results as compact plain
+text with deterministic caps: **≤ 5 results**, **≤ 500 characters per snippet**,
+**≈ 2,500 characters total** (trailing results are dropped whole, with a
+one-line `[search context truncated: …]` marker; at least one result always
+survives). No LLM compresses or ranks anything. `combine_contexts` merges
+user-supplied context and search context under `USER-PROVIDED CONTEXT` /
+`SEARCH EVIDENCE` headings — user content is never dropped or reordered.
+
+### Failure behaviour
+
+If a configured search provider raises, the error propagates and the request
+stops. The orchestrator call has already happened (1 LLM call); **no** specialist
+is called, **no** retry, **no** alternate provider, **no** re-route, **no** other
+agent. `tests/orchestration/test_dispatcher_search.py` asserts exactly this.
+
+### Cost
+
+Search adds network I/O but **zero** `ModelProvider` calls. A successful request
+is still exactly **2** LLM calls: `orchestrator = 1`, selected `specialist = 1`,
+`search = 0`. Search evidence is placed in the specialist's *user* prompt; the
+route's skill body remains the only skill content in its *system* prompt (skill
+isolation is re-proved with search active).
+
+Page fetching / crawling is deliberately **not** implemented — snippets are
+enough to demonstrate the tool architecture.
+
+## 14. Architecture Reframe
 
 **An earlier version of this document described a different system.** That design
 is no longer the target and is not planned for the current portfolio version.
@@ -423,14 +501,14 @@ execution tracing, and persistence. The project does **not** aim to mechanically
 implement every multi-agent pattern (no `SequentialAgent` / `ParallelAgent` /
 `LoopAgent` abstractions).
 
-## 14. Build status
+## 15. Build status
 
 ### Implemented
 
 - **Phase 0** — package skeleton; contracts (`BaseAgent` + `AgentRuntimeContext`,
   `ModelProvider`, `BaseTool` + `ToolResult`, `SkillRegistry`, `AgentClient`);
   `RunState` / `RunStatus`; `WorkflowConfig`; event contracts; tests. *(Some
-  models are now legacy — see §13.)*
+  models are now legacy — see §14.)*
 - **Phase 1** — `ModelProvider` layer: `ModelConfig` + `ModelProviderType`,
   provider exceptions, `MockModelProvider`, `AnthropicModelProvider`,
   `create_model_provider` factory, `scripts/model_smoke_test.py`, provider tests.
@@ -458,9 +536,19 @@ implement every multi-agent pattern (no `SequentialAgent` / `ParallelAgent` /
   deterministic `validate_brief.py` skill script, `scripts/skills_demo.py`, and
   `tests/skills/` (registry, mapping, isolation + two-call re-proof, validator).
   Depends on PyYAML.
+- **Phase 6** — deterministic search-tool layer (§13): `app/models/search.py`
+  (`SearchResult`, `SearchResponse`), `app/tools/search.py` (`SearchProvider`,
+  `MockSearchProvider`, optional no-key `DuckDuckGoSearchProvider`, `SearchConfig`
+  + factory), `app/tools/context.py` (`build_search_context`, `combine_contexts`,
+  size caps), `app/tools/policy.py` (`SEARCH_ENABLED_ROUTES`),
+  `app/tools/exceptions.py`, dispatcher + `create_dispatcher` `search_provider`
+  wiring, small research/comparison prompt notes, `scripts/tools_demo.py`,
+  updated `scripts/dispatch_demo.py`, and `tests/tools/` + search dispatcher
+  tests. Optional `ddgs` dependency (`[search]` extra).
 
 ### Not implemented yet
 
-- real search/fetch tools feeding `provided_context`
+- full webpage fetching / scraping / crawling
+- autonomous / model-driven tool use
 - deterministic post-processing beyond result assembly (formatting, storage)
 - persistence, events wiring, HTTP/A2A transport, UI

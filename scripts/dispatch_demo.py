@@ -47,8 +47,11 @@ from app.providers.config import ModelConfig, ModelProviderType
 from app.providers.factory import create_model_provider
 from app.providers.mock import MockModelProvider
 from app.runtime import create_dispatcher
+from app.models.search import SearchResponse, SearchResult
 from app.skills.local import LocalSkillRegistry
 from app.skills.mapping import skill_for_route
+from app.tools.policy import search_enabled_for_route
+from app.tools.search import MockSearchProvider
 
 _CTX = AgentRuntimeContext(run_id="dispatch-demo")
 _SKILLS = LocalSkillRegistry()
@@ -58,13 +61,22 @@ def _skill_instructions(route: AgentRoute) -> str:
     return _SKILLS.load(skill_for_route(route)).instructions
 
 
-def _show(request: DispatchRequest, result: DispatchResult) -> None:
+def _show(
+    request: DispatchRequest,
+    result: DispatchResult,
+    *,
+    search_results: int | None = None,
+) -> None:
     print(f"User request:\n  {request.user_request}")
     if request.provided_context:
         print(f"Provided context:\n  {request.provided_context}")
     print(f"\nRoute: {result.route.value}")
     print(f"Selected specialist: {result.route.value}Agent")
     print(f"Selected skill: {skill_for_route(result.route)} (deterministic, no LLM)")
+    if not search_enabled_for_route(result.route):
+        print("Search provider used: none (this route never searches)")
+    else:
+        print(f"Search provider used: mock ({search_results} results, 0 LLM calls)")
     print("LLM calls for this run: 2 maximum (1 orchestrator + 1 specialist)")
     print(f"Routing reasoning:\n  {result.routing_reasoning}")
     print("Structured result:")
@@ -75,17 +87,38 @@ def _show(request: DispatchRequest, result: DispatchResult) -> None:
 # --------------------------------------------------------------------------- #
 # Mock demo
 # --------------------------------------------------------------------------- #
+_MOCK_SEARCH = SearchResponse(
+    query="demo",
+    results=[
+        SearchResult(
+            title="Illustrative result A",
+            url="https://example.com/a",
+            snippet="A short deterministic snippet used only for the mock demo.",
+            source="example.com",
+        ),
+        SearchResult(
+            title="Illustrative result B",
+            url="https://example.com/b",
+            snippet="Another short deterministic snippet for the mock demo.",
+            source="example.com",
+        ),
+    ],
+)
+
+
 def _mock_dispatcher(
     routing: RoutingDecision,
     *,
     research: ResearchResponse | None = None,
     comparison: ComparisonResponse | None = None,
     brief: BriefResponse | None = None,
+    with_search: bool = False,
 ) -> DecisionForgeDispatcher:
     """One dispatcher per demo request, with per-agent mock providers.
 
     Each specialist is skill-aware: only its own activated SKILL.md body is
-    injected (deterministic file I/O, zero model calls).
+    injected (deterministic file I/O, zero model calls). ``with_search`` adds a
+    MockSearchProvider (offline, zero model calls).
     """
     return DecisionForgeDispatcher(
         orchestrator=OrchestratorAgent(
@@ -103,6 +136,9 @@ def _mock_dispatcher(
             MockModelProvider(structured_responses=[brief] if brief else []),
             _skill_instructions(AgentRoute.BRIEF),
         ),
+        search_provider=(
+            MockSearchProvider(responses=[_MOCK_SEARCH]) if with_search else None
+        ),
     )
 
 
@@ -117,11 +153,16 @@ def _run_mock_demo() -> int:
             topic="vector databases",
             summary="Databases specialised for similarity search over embeddings.",
             key_findings=["pgvector, Milvus, Qdrant and Weaviate are common choices."],
-            limitations=["No live search performed; based on model knowledge only."],
-            sources=[],
+            limitations=["Search evidence was mock/offline for this demo."],
+            sources=["https://example.com/a"],
         ),
+        with_search=True,
     )
-    _show(req_a, asyncio.run(disp_a.dispatch(req_a, _CTX)))
+    _show(
+        req_a,
+        asyncio.run(disp_a.dispatch(req_a, _CTX)),
+        search_results=len(_MOCK_SEARCH.results),
+    )
 
     # B. Comparison
     req_b = DispatchRequest(
@@ -149,10 +190,15 @@ def _run_mock_demo() -> int:
             rationale="Most SaaS data benefits from constraints and joins.",
             important_tradeoffs=["Schema rigidity vs flexibility"],
             confidence=0.66,
-            limitations=["No workload benchmarks or pricing supplied."],
+            limitations=["Search evidence was mock/offline for this demo."],
         ),
+        with_search=True,
     )
-    _show(req_b, asyncio.run(disp_b.dispatch(req_b, _CTX)))
+    _show(
+        req_b,
+        asyncio.run(disp_b.dispatch(req_b, _CTX)),
+        search_results=len(_MOCK_SEARCH.results),
+    )
 
     # C. Brief (with context)
     req_c = DispatchRequest(
