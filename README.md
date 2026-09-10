@@ -55,13 +55,31 @@ Not implemented yet:
 ## Model provider & cost
 
 - **Mock is the default and needs no credentials.** The test suite and the
-  default demo make no network calls.
+  default demos make no network calls.
 - **Anthropic mode is opt-in:** set `MODEL_PROVIDER=anthropic` with
   `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`, and install the extra
   (`pip install -e ".[anthropic]"`). This uses the Anthropic API and **may incur
   charges billed to your Anthropic account**.
 - An Anthropic API key/account is **separate** from a Claude Code / Claude.ai
   subscription and is billed differently.
+
+### Using a `.env` file
+
+Copy `.env.example` to `.env` and fill in your key:
+
+```bash
+cp .env.example .env
+# then edit .env:
+#   MODEL_PROVIDER=anthropic
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   ANTHROPIC_MODEL=<a-model-id>
+```
+
+`ModelConfig.from_env()` (used by every `--live` script path) auto-loads the
+nearest `.env` at or above the working directory. Real environment variables
+always take precedence over the file, and `.env` is git-ignored so your key is
+never committed. Automated tests and the default (mock) demos do not read `.env`
+and stay zero-cost.
 
 ## Requirements
 

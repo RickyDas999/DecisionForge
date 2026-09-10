@@ -238,6 +238,12 @@ Agent  ->  ModelProvider  ->  (MockModelProvider | AnthropicModelProvider)  ->  
   Anthropic is reached only when `MODEL_PROVIDER=anthropic` is set together with
   `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`, and only when code actually calls a
   `generate_*` method.
+- **`.env`** — `ModelConfig.from_env()` (no explicit `env` mapping) loads the
+  nearest `.env` file at or above the working directory via the tiny
+  dependency-free loader in `app/env.py`, so credentials can live in a
+  git-ignored `.env` instead of the shell. Real environment variables always
+  win over the file. Tests pass an explicit `env=` mapping and never read
+  `.env`, so the automated suite stays hermetic and zero-cost.
 
 ## 11. Local-first, optional remote later
 

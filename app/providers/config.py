@@ -14,6 +14,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from app.env import load_dotenv
 from app.providers.exceptions import ModelConfigurationError
 
 #: Default token ceiling for a single generation when none is configured.
@@ -41,18 +42,33 @@ class ModelConfig(BaseModel):
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str] | None = None) -> "ModelConfig":
+    def from_env(
+        cls,
+        env: Mapping[str, str] | None = None,
+        *,
+        use_dotenv: bool = True,
+    ) -> "ModelConfig":
         """Build a config from environment variables.
 
         Reads ``MODEL_PROVIDER`` (default ``mock``), ``ANTHROPIC_API_KEY``,
         ``ANTHROPIC_MODEL``, and the optional tuning values
         ``ANTHROPIC_MAX_TOKENS`` and ``ANTHROPIC_TEMPERATURE``.
 
+        When ``env`` is not given, the nearest ``.env`` file at or above the
+        current working directory is loaded into ``os.environ`` first (real
+        environment variables are never overwritten). Pass an explicit ``env``
+        mapping, or ``use_dotenv=False``, to skip that.
+
         With no variables set, this returns a mock configuration and never
         raises. An unrecognised ``MODEL_PROVIDER`` value raises
         ``ModelConfigurationError``.
         """
-        source = os.environ if env is None else env
+        if env is None:
+            if use_dotenv:
+                load_dotenv()
+            source: Mapping[str, str] = os.environ
+        else:
+            source = env
 
         raw_provider = (source.get("MODEL_PROVIDER") or "mock").strip().lower() or "mock"
         try:
