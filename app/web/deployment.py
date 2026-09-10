@@ -34,6 +34,8 @@ from app.providers.factory import create_model_provider
 from app.providers.model import ModelProvider
 from app.runtime import create_dispatcher
 from app.service import DecisionForgeService
+from app.skills.base import SkillRegistry
+from app.skills.exceptions import SkillError
 from app.skills.local import LocalSkillRegistry
 from app.tools.search import (
     SearchConfig,
@@ -77,6 +79,22 @@ def _repository(persistence_enabled: bool) -> RunRepository:
     return NullRunRepository()
 
 
+def _skill_registry() -> SkillRegistry | None:
+    """A skill registry, or ``None`` if the ``skills/`` directory isn't reachable.
+
+    On some hosts the (non-Python) ``skills/`` tree may not be bundled. The app
+    must still boot — specialists then run without the ``SKILL.md`` enrichment;
+    routing, results and the event trace are unaffected.
+    """
+    registry = LocalSkillRegistry()
+    try:
+        for name in ("research", "comparison", "executive-brief"):
+            registry.load(name)
+    except (SkillError, OSError):
+        return None
+    return registry
+
+
 def create_deployment_app() -> FastAPI:
     """Construct the app from environment configuration. Import-safe.
 
@@ -90,7 +108,7 @@ def create_deployment_app() -> FastAPI:
     repository = _repository(persistence_enabled)
     dispatcher = create_dispatcher(
         _model_provider(model_config),
-        skill_registry=LocalSkillRegistry(),
+        skill_registry=_skill_registry(),
         search_provider=_search_provider(search_config),
     )
     service = DecisionForgeService(dispatcher, repository)

@@ -58,8 +58,18 @@ def create_app(
     )
 
     @app.get("/", include_in_schema=False)
-    async def index() -> FileResponse:
-        return FileResponse(_INDEX_HTML)
+    async def index():
+        if _INDEX_HTML.is_file():
+            return FileResponse(_INDEX_HTML)
+        # Static assets weren't bundled by the host; the JSON API still works.
+        return JSONResponse(
+            {
+                "detail": "UI assets are unavailable on this host; the JSON API "
+                "at /api/runs and /api/health still works.",
+                "error_type": "UIAssetsMissing",
+            },
+            status_code=200,
+        )
 
     @app.get("/api/health")
     async def health() -> dict[str, object]:
@@ -77,6 +87,8 @@ def create_app(
         except MissingBriefContextError as exc:
             return _error_response(400, exc, run_id)
         except (DispatchError, ModelProviderError, SearchError) as exc:
+            return _error_response(500, exc, run_id)
+        except Exception as exc:  # noqa: BLE001 - last-resort safe mapping
             return _error_response(500, exc, run_id)
         return RunResult.from_run(outcome.record, outcome.events)
 
