@@ -352,6 +352,8 @@ def test_health_reports_safe_config_only(tmp_path) -> None:
     assert health["status"] == "ok"
     assert health["max_llm_calls"] == 2
     assert health["persistence_enabled"] is True  # SQLite repo in this rig
+    assert health["search_provider"] == "none"  # make_rig default has no search
+    assert health["search_enabled"] is False
     assert "api_key" not in str(health).lower()
     assert "sk-ant" not in str(health)
 

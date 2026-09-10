@@ -74,6 +74,38 @@ def test_api_index_health_is_mock_and_stateless_by_default(monkeypatch) -> None:
     assert health["model_provider"] == "mock"
     assert health["persistence_enabled"] is False
     assert health["max_llm_calls"] == 2
+    # mock mode wires the offline demo search so the trace shows the step
+    assert health["search_provider"] == "demo (offline)"
+    assert health["search_enabled"] is True
+
+
+def test_health_search_is_none_in_anthropic_mode_without_explicit_config(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("MODEL_PROVIDER", "anthropic")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-fake-not-real")
+    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-test-model")
+    monkeypatch.delenv("SEARCH_PROVIDER", raising=False)
+
+    class _StubProvider:
+        messages = object()
+
+    # don't build a real Anthropic client during construction
+    monkeypatch.setattr(
+        "app.web.deployment.create_model_provider", lambda *a, **k: _StubProvider()
+    )
+    health = TestClient(create_deployment_app()).get("/api/health").json()
+    assert health["model_provider"] == "anthropic"
+    assert health["search_provider"] == "none"
+    assert health["search_enabled"] is False
+
+
+def test_health_search_reports_duckduckgo_when_selected(monkeypatch) -> None:
+    monkeypatch.delenv("MODEL_PROVIDER", raising=False)  # mock
+    monkeypatch.setenv("SEARCH_PROVIDER", "duckduckgo")
+    health = TestClient(create_deployment_app()).get("/api/health").json()
+    assert health["search_provider"] == "duckduckgo"
+    assert health["search_enabled"] is True
 
 
 def test_health_never_leaks_secrets(monkeypatch) -> None:

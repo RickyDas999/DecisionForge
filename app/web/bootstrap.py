@@ -37,4 +37,4 @@ def create_demo_service(
 
 def create_demo_app(db_path: str | None = None) -> FastAPI:
     service, repository = create_demo_service(db_path)
-    return create_app(service, repository)
+    return create_app(service, repository, search_label="demo (offline)")

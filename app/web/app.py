@@ -46,9 +46,11 @@ def create_app(
     repository: RunRepository,
     *,
     model_provider_label: str = "mock",
+    search_label: str = "none",
 ) -> FastAPI:
     """Build the app around an already-constructed service + repository."""
     persistence_enabled = not isinstance(repository, NullRunRepository)
+    search_enabled = search_label != "none"
 
     app = FastAPI(title="DecisionForge", docs_url="/api/docs")
     app.mount(
@@ -76,6 +78,8 @@ def create_app(
         return {
             "status": "ok",
             "model_provider": model_provider_label,
+            "search_provider": search_label,
+            "search_enabled": search_enabled,
             "persistence_enabled": persistence_enabled,
             "max_llm_calls": 2,
             "architecture": "single-hop: orchestrator -> exactly one specialist",

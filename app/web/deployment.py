@@ -69,14 +69,16 @@ def _model_provider(config: ModelConfig) -> ModelProvider:
 
 def _search_provider(
     config: SearchConfig, model_config: ModelConfig
-) -> SearchProvider | None:
+) -> tuple[SearchProvider | None, str]:
+    """Return ``(provider, label)`` — the label surfaces in ``/api/health``."""
     if config.provider is SearchProviderType.DUCKDUCKGO:
-        return create_search_provider(config)  # lazy ddgs import (only on .search())
+        # lazy ddgs import (only on .search())
+        return create_search_provider(config), "duckduckgo"
     if model_config.provider is ModelProviderType.MOCK:
         # Offline demo mode: show the search step in the execution trace without
         # any network. Real Claude mode stays search-free unless explicitly set.
-        return DemoSearchProvider()
-    return None
+        return DemoSearchProvider(), "demo (offline)"
+    return None, "none"
 
 
 def _repository(persistence_enabled: bool) -> RunRepository:
@@ -112,14 +114,16 @@ def create_deployment_app() -> FastAPI:
     persistence_enabled = _env_bool(PERSISTENCE_ENV_VAR, default=False)
 
     repository = _repository(persistence_enabled)
+    search_provider, search_label = _search_provider(search_config, model_config)
     dispatcher = create_dispatcher(
         _model_provider(model_config),
         skill_registry=_skill_registry(),
-        search_provider=_search_provider(search_config, model_config),
+        search_provider=search_provider,
     )
     service = DecisionForgeService(dispatcher, repository)
     return create_app(
         service,
         repository,
         model_provider_label=model_config.provider.value,
+        search_label=search_label,
     )

@@ -12,7 +12,15 @@ const el = (tag, cls, text) => {
   return n;
 };
 
-let CONFIG = { model_provider: "mock", persistence_enabled: false, max_llm_calls: 2 };
+let CONFIG = {
+  model_provider: "mock",
+  search_provider: "none",
+  search_enabled: false,
+  persistence_enabled: false,
+  max_llm_calls: 2,
+};
+
+const SEARCH_ELIGIBLE_ROUTES = new Set(["research", "comparison"]);
 
 // ---- human-readable labels ------------------------------------------------
 const ROUTE_LABEL = { research: "Research", comparison: "Comparison", brief: "Brief" };
@@ -193,12 +201,25 @@ function renderChips(run) {
   if (run.route) row.appendChild(chipKV("Route", ROUTE_LABEL[run.route] || run.route, "accent"));
   if (run.route) row.appendChild(chipKV("Specialist", SPECIALIST_LABEL[run.route] || run.selected_specialist));
   if (run.selected_skill) row.appendChild(chipKV("Skill", SKILL_LABEL[run.selected_skill] || run.selected_skill));
-  row.appendChild(
-    chip(run.search_used ? "Search: used" : "Search: skipped for this route", run.search_used ? "" : "")
-  );
+  row.appendChild(chip(searchChipText(run)));
   const conf = run.result && typeof run.result.confidence === "number" ? run.result.confidence : null;
   if (conf != null) row.appendChild(chipKV("Confidence", `${Math.round(conf * 100)}%`));
   row.appendChild(chipKV("LLM calls", `${run.llm_calls} / ${run.llm_calls_max} max`, "accent"));
+}
+
+function searchChipText(run) {
+  if (run.search_used) {
+    const ev = (run.events || []).find((e) => e.event_type === "search.completed");
+    const n = ev && ev.metadata ? ev.metadata.result_count : null;
+    return n != null ? `Search: used (${n} results)` : "Search: used";
+  }
+  if (!SEARCH_ELIGIBLE_ROUTES.has(run.route)) {
+    return "Search: not used for this route";
+  }
+  // route is search-eligible but no evidence was gathered
+  return CONFIG.search_enabled
+    ? "Search: available, no results"
+    : "Search: not configured on this server";
 }
 
 function renderWhy(run) {
@@ -253,6 +274,7 @@ function renderTech(run) {
   dlRow(ex, "specialist", run.selected_specialist || "—");
   dlRow(ex, "skill", run.selected_skill || "—");
   dlRow(ex, "search used", String(run.search_used));
+  dlRow(ex, "search provider", CONFIG.search_provider);
   dlRow(ex, "persistence", CONFIG.persistence_enabled ? "sqlite (local)" : "stateless");
   dlRow(ex, "model provider", CONFIG.model_provider);
 
