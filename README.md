@@ -31,7 +31,7 @@ User request
 > complexity, and is **not** planned for this version. See
 > `docs/architecture.md` -> "Architecture Reframe".
 
-## Status (Phase 4)
+## Status (Phase 5)
 
 Implemented:
 
@@ -46,13 +46,18 @@ Implemented:
 - **`DecisionForgeDispatcher`** — the deterministic single-hop path: one
   orchestrator call, then exactly one specialist call, then a typed
   `DispatchResult`. No fallback, no retry, no loop, no parallelism.
-- `scripts/dispatch_demo.py` — the first zero-cost end-to-end mock demo, plus an
-  optional live path capped at 2 Anthropic calls.
+- **local Agent Skills** — a `skills/` tree with YAML-frontmatter `SKILL.md`
+  files and three-stage progressive disclosure (discovery = metadata only,
+  activation = one `SKILL.md` body, extension = references/scripts on explicit
+  demand), a deterministic `LocalSkillRegistry`, a **static route→skill mapping**
+  (no LLM picks the skill), and skill-aware specialist prompts that receive only
+  their own skill's instructions.
+- demos: `scripts/skills_demo.py` (progressive disclosure) and
+  `scripts/dispatch_demo.py` (end-to-end); both zero-cost by default.
 
 Not implemented yet:
 
 - real web search / fetch tools (feeding `provided_context`)
-- Agent Skills runtime
 - persistence / run history
 - web UI
 - optional HTTP/A2A transport
@@ -113,6 +118,7 @@ tests).
 
 ```bash
 python scripts/dispatch_demo.py         # END-TO-END: request -> orchestrator -> one specialist -> result
+python scripts/skills_demo.py           # Agent Skills: discovery -> activation -> extension (file I/O only)
 python scripts/orchestrator_demo.py     # routes 3 sample requests via MockModelProvider
 python scripts/specialists_demo.py      # runs all 3 leaf specialists via MockModelProvider
 python scripts/model_smoke_test.py      # exercises both provider methods via MockModelProvider

@@ -1,12 +1,14 @@
 """Agent Skill contracts.
 
-The future skill runtime implements progressive disclosure:
-  * Stage 1 (discovery): load only :class:`SkillMetadata`.
-  * Stage 2 (activation): load the :class:`SkillDefinition` body when relevant.
-  * Stage 3 (extension): load references / scripts only when needed.
+Progressive disclosure:
+  * Stage 1 (discovery): :class:`SkillMetadata` only — name + description.
+  * Stage 2 (activation): :class:`SkillDefinition` — metadata + the SKILL.md body
+    + the *names* of available references and scripts (not their contents).
+  * Stage 3 (extension): reference contents / script paths, fetched only on
+    explicit request via registry methods.
 
-Phase 0 defines the contracts only. No SKILL.md parsing, directory scanning, or
-script execution happens yet.
+Skill loading is ordinary deterministic file I/O. It never calls an LLM, a
+``ModelProvider``, or an agent.
 """
 
 from __future__ import annotations
@@ -17,30 +19,38 @@ from pydantic import BaseModel, Field
 
 
 class SkillMetadata(BaseModel):
-    """Minimal descriptor loaded during discovery."""
+    """Discovery-level descriptor."""
 
     name: str
     description: str
 
 
 class SkillDefinition(BaseModel):
-    """Full skill payload loaded on activation."""
+    """Activated skill data.
+
+    ``references`` and ``scripts`` are filenames only. Their contents stay on
+    disk until explicitly requested (Stage 3).
+    """
 
     metadata: SkillMetadata
     instructions: str
     references: list[str] = Field(default_factory=list)
     scripts: list[str] = Field(default_factory=list)
 
+    @property
+    def name(self) -> str:
+        return self.metadata.name
+
 
 class SkillRegistry(ABC):
-    """Abstract discovery + loading interface for Agent Skills."""
+    """Discovery + activation interface for Agent Skills (synchronous file I/O)."""
 
     @abstractmethod
-    async def discover(self) -> list[SkillMetadata]:
-        """Return metadata for every known skill (Stage 1)."""
+    def discover(self) -> list[SkillMetadata]:
+        """Stage 1: return name + description for every known skill."""
         raise NotImplementedError
 
     @abstractmethod
-    async def load(self, skill_name: str) -> SkillDefinition:
-        """Return the full definition for one skill (Stage 2)."""
+    def load(self, skill_name: str) -> SkillDefinition:
+        """Stage 2: return the activated definition for one skill."""
         raise NotImplementedError

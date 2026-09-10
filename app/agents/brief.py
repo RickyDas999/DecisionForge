@@ -47,8 +47,22 @@ class BriefAgent(BaseAgent[BriefInput, BriefResponse]):
 
     name = "brief"
 
-    def __init__(self, model_provider: ModelProvider) -> None:
+    def __init__(
+        self,
+        model_provider: ModelProvider,
+        skill_instructions: str | None = None,
+    ) -> None:
         self.model_provider = model_provider
+        #: The activated `executive-brief` SKILL.md body, or None.
+        self.skill_instructions = skill_instructions
+
+    def _system_prompt(self) -> str:
+        if not self.skill_instructions:
+            return BRIEF_SYSTEM_PROMPT
+        return (
+            f"{BRIEF_SYSTEM_PROMPT}\n\n"
+            f"--- Activated skill: executive-brief ---\n{self.skill_instructions.strip()}"
+        )
 
     async def run(
         self,
@@ -56,7 +70,7 @@ class BriefAgent(BaseAgent[BriefInput, BriefResponse]):
         context: AgentRuntimeContext,
     ) -> BriefResponse:
         return await self.model_provider.generate_structured(
-            system_prompt=BRIEF_SYSTEM_PROMPT,
+            system_prompt=self._system_prompt(),
             user_prompt=_build_user_prompt(task_input),
             response_model=BriefResponse,
         )

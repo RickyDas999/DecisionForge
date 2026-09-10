@@ -48,8 +48,23 @@ class ResearchAgent(BaseAgent[ResearchInput, ResearchResponse]):
 
     name = "research"
 
-    def __init__(self, model_provider: ModelProvider) -> None:
+    def __init__(
+        self,
+        model_provider: ModelProvider,
+        skill_instructions: str | None = None,
+    ) -> None:
         self.model_provider = model_provider
+        #: The activated `research` SKILL.md body, or None. Only this skill's
+        #: instructions ever reach this agent.
+        self.skill_instructions = skill_instructions
+
+    def _system_prompt(self) -> str:
+        if not self.skill_instructions:
+            return RESEARCH_SYSTEM_PROMPT
+        return (
+            f"{RESEARCH_SYSTEM_PROMPT}\n\n"
+            f"--- Activated skill: research ---\n{self.skill_instructions.strip()}"
+        )
 
     async def run(
         self,
@@ -57,7 +72,7 @@ class ResearchAgent(BaseAgent[ResearchInput, ResearchResponse]):
         context: AgentRuntimeContext,
     ) -> ResearchResponse:
         return await self.model_provider.generate_structured(
-            system_prompt=RESEARCH_SYSTEM_PROMPT,
+            system_prompt=self._system_prompt(),
             user_prompt=_build_user_prompt(task_input),
             response_model=ResearchResponse,
         )

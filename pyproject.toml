@@ -9,6 +9,7 @@ description = "Local-first multi-agent research and decision intelligence platfo
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.6",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

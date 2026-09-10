@@ -47,8 +47,15 @@ from app.providers.config import ModelConfig, ModelProviderType
 from app.providers.factory import create_model_provider
 from app.providers.mock import MockModelProvider
 from app.runtime import create_dispatcher
+from app.skills.local import LocalSkillRegistry
+from app.skills.mapping import skill_for_route
 
 _CTX = AgentRuntimeContext(run_id="dispatch-demo")
+_SKILLS = LocalSkillRegistry()
+
+
+def _skill_instructions(route: AgentRoute) -> str:
+    return _SKILLS.load(skill_for_route(route)).instructions
 
 
 def _show(request: DispatchRequest, result: DispatchResult) -> None:
@@ -56,9 +63,10 @@ def _show(request: DispatchRequest, result: DispatchResult) -> None:
     if request.provided_context:
         print(f"Provided context:\n  {request.provided_context}")
     print(f"\nRoute: {result.route.value}")
+    print(f"Selected specialist: {result.route.value}Agent")
+    print(f"Selected skill: {skill_for_route(result.route)} (deterministic, no LLM)")
     print("LLM calls for this run: 2 maximum (1 orchestrator + 1 specialist)")
     print(f"Routing reasoning:\n  {result.routing_reasoning}")
-    print(f"Selected specialist: {result.route.value}Agent")
     print("Structured result:")
     print(result.result.model_dump_json(indent=2))
     print("=" * 64)
@@ -74,19 +82,26 @@ def _mock_dispatcher(
     comparison: ComparisonResponse | None = None,
     brief: BriefResponse | None = None,
 ) -> DecisionForgeDispatcher:
-    """One dispatcher per demo request, with per-agent mock providers."""
+    """One dispatcher per demo request, with per-agent mock providers.
+
+    Each specialist is skill-aware: only its own activated SKILL.md body is
+    injected (deterministic file I/O, zero model calls).
+    """
     return DecisionForgeDispatcher(
         orchestrator=OrchestratorAgent(
             MockModelProvider(structured_responses=[routing])
         ),
         research_agent=ResearchAgent(
-            MockModelProvider(structured_responses=[research] if research else [])
+            MockModelProvider(structured_responses=[research] if research else []),
+            _skill_instructions(AgentRoute.RESEARCH),
         ),
         comparison_agent=ComparisonAgent(
-            MockModelProvider(structured_responses=[comparison] if comparison else [])
+            MockModelProvider(structured_responses=[comparison] if comparison else []),
+            _skill_instructions(AgentRoute.COMPARISON),
         ),
         brief_agent=BriefAgent(
-            MockModelProvider(structured_responses=[brief] if brief else [])
+            MockModelProvider(structured_responses=[brief] if brief else []),
+            _skill_instructions(AgentRoute.BRIEF),
         ),
     )
 
@@ -185,7 +200,7 @@ def _run_live_demo(request_text: str, context: str | None) -> int:
     )
     print(f"provider={config.provider.value} model={config.model}\n")
 
-    dispatcher = create_dispatcher(create_model_provider(config))
+    dispatcher = create_dispatcher(create_model_provider(config), _SKILLS)
     request = DispatchRequest(user_request=request_text, provided_context=context)
 
     try:

@@ -280,11 +280,80 @@ Later, a specialist could run as an HTTP/A2A-style service behind the same
 interface without changing the orchestrator or the dispatch layer. No transport
 client is implemented yet.
 
-## 12. Agent Skills (later)
+## 12. Agent Skills and progressive disclosure
 
-`app/skills/base.py` defines the skill contracts. The future runtime will use
-progressive disclosure — load metadata for discovery, the `SKILL.md` body on
-activation, references/scripts only when needed. No skill runtime exists yet.
+DecisionForge ships a small **local** Agent Skills system. Skills live on disk
+under `skills/`:
+
+```
+skills/
+  research/           SKILL.md  references/research-guidelines.md
+  comparison/          SKILL.md  references/comparison-framework.md
+  executive-brief/     SKILL.md  references/brief-template.md  scripts/validate_brief.py
+```
+
+Each `SKILL.md` is YAML frontmatter (`name`, `description`) followed by a
+Markdown instruction body. `LocalSkillRegistry` (`app/skills/local.py`) reads
+this tree with **plain deterministic file I/O** — no LLM, no `ModelProvider`, no
+network, no agent.
+
+### The three stages
+
+| Stage | Method | Loads |
+|---|---|---|
+| 1 — Discovery | `registry.discover()` | `name` + `description` for every skill. Nothing else — not the body, not references, not scripts. |
+| 2 — Activation | `registry.load(name)` | metadata + the `SKILL.md` body + the *filenames* of available references and scripts (not their contents). |
+| 3 — Extension | `registry.load_reference(name, file)` / `registry.get_script_path(name, file)` | one reference's text / one script's path, **only** when code explicitly asks. Scripts are never executed by the registry. |
+
+Malformed frontmatter raises `InvalidSkillError`; an unknown skill raises
+`SkillNotFoundError`; an unknown reference/script raises
+`SkillResourceNotFoundError`. Reference/script names are checked for path
+traversal.
+
+### Why there is no LLM skill selection
+
+The orchestrator has **already** made the one semantic decision that matters —
+which specialist handles the request. The skill follows deterministically from
+that route via a static table (`app/skills/mapping.py`):
+
+```
+AgentRoute.RESEARCH    -> "research"
+AgentRoute.COMPARISON  -> "comparison"
+AgentRoute.BRIEF       -> "executive-brief"
+```
+
+```
+RoutingDecision.route
+   -> ROUTE_SKILLS[route]              (static Python dict, free)
+   -> LocalSkillRegistry.load(name)    (file read)
+   -> SkillDefinition.instructions
+   -> injected into the selected specialist's system prompt
+```
+
+Asking Claude to pick a skill would be a third semantic step and more tokens for
+no benefit.
+
+### What reaches Claude
+
+`create_dispatcher(provider, skill_registry)` builds each specialist **skill-aware**:
+the specialist's constructor takes `skill_instructions: str | None`, and its
+system prompt becomes `<base role prompt>` + `--- Activated skill: <name> ---` +
+`<that skill's SKILL.md body>`. For a comparison request, the `ComparisonAgent`
+call carries the comparison base prompt and the comparison `SKILL.md` body — and
+**not** the research or executive-brief bodies, **not** any reference or script
+file, and **not** skill metadata for other skills. Tests in
+`tests/skills/test_skill_isolation.py` enforce this.
+
+### Cost
+
+Skill loading is file I/O. It issues **zero** `ModelProvider` calls. A full
+successful request is still exactly **2** LLM calls (1 orchestrator + 1
+specialist) — `tests/skills/test_skill_isolation.py` re-proves this for a
+skill-aware dispatch.
+
+`skills/executive-brief/scripts/validate_brief.py` is a deterministic structural
+check (`title` non-empty, `executive_summary` non-empty, ≥1 `key_points`) — no
+LLM, no imports of Anthropic/network libraries, no correction loop.
 
 ## 13. Architecture Reframe
 
@@ -348,11 +417,11 @@ use their own fresh, minimal models in `app/models/specialists.py`.
 
 Parent/orchestrator + specialist hierarchy, constrained single-hop delegation,
 specialized agents, structured Pydantic outputs, shared runtime context, the
-model-provider abstraction, local-first execution, and — later — Agent Skills
-with progressive disclosure, tool use, optional remote transport, execution
-tracing, and persistence. The project does **not** aim to mechanically implement
-every multi-agent pattern (no `SequentialAgent` / `ParallelAgent` / `LoopAgent`
-abstractions).
+model-provider abstraction, local-first execution, local Agent Skills with
+progressive disclosure (§12), and — later — tool use, optional remote transport,
+execution tracing, and persistence. The project does **not** aim to mechanically
+implement every multi-agent pattern (no `SequentialAgent` / `ParallelAgent` /
+`LoopAgent` abstractions).
 
 ## 14. Build status
 
@@ -381,9 +450,17 @@ abstractions).
   two-call-maximum test, and the first end-to-end demo
   `scripts/dispatch_demo.py`. Routing, specialist behavior, and dispatch are
   still each covered by their own unit tests.
+- **Phase 5** — local Agent Skills (§12): the `skills/` tree with three
+  `SKILL.md` files, `LocalSkillRegistry` (discover / load / `load_reference` /
+  `get_script_path`) + `app/skills/exceptions.py`, the static
+  `app/skills/mapping.py` route→skill table, `skill_instructions` on each
+  specialist, `create_dispatcher(provider, skill_registry)` wiring, the
+  deterministic `validate_brief.py` skill script, `scripts/skills_demo.py`, and
+  `tests/skills/` (registry, mapping, isolation + two-call re-proof, validator).
+  Depends on PyYAML.
 
 ### Not implemented yet
 
 - real search/fetch tools feeding `provided_context`
 - deterministic post-processing beyond result assembly (formatting, storage)
-- Agent Skills runtime, persistence, events wiring, HTTP/A2A transport, UI
+- persistence, events wiring, HTTP/A2A transport, UI
