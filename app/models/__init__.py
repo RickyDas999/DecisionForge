@@ -24,6 +24,7 @@ from app.models.analysis import (
     SecondaryAnalysisInput,
 )
 from app.models.brief import FinalBrief
+from app.models.dispatch import DispatchRequest, DispatchResult, SpecialistResponse
 from app.models.events import EventType, WorkflowEvent
 from app.models.judging import JudgeInput, JudgeResult
 from app.models.planning import PlannerInput, ResearchPlan, ResearchTrack
@@ -58,6 +59,10 @@ __all__ = [
     "ComparisonResponse",
     "ResearchInput",
     "ResearchResponse",
+    # --- Current architecture: dispatch ---
+    "DispatchRequest",
+    "DispatchResult",
+    "SpecialistResponse",
     # --- Shared ---
     "EventType",
     "RunState",

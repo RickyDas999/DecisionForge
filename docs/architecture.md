@@ -73,9 +73,36 @@ it cannot delegate. Everything below the specialists is deterministic Python.
 This models controlled parent/sub-agent routing without an open-ended agent
 graph.
 
-The deterministic **dispatcher** that turns a `RoutingDecision` into exactly one
-specialist call is **not implemented yet** (next phase). Semantic routing,
-specialist behavior, and deterministic dispatch are built and tested separately.
+### The runtime request path (implemented)
+
+`DecisionForgeDispatcher` (`app/orchestration/dispatcher.py`) is the complete
+single-hop path:
+
+```
+User
+ -> DispatchRequest
+ -> OrchestratorAgent.run()        # 1 LLM call — semantic routing
+ -> RoutingDecision.route
+ -> DecisionForgeDispatcher        # deterministic Python owns selection
+ -> exactly one specialist .run()  # 1 LLM call — the work
+ -> DispatchResult
+```
+
+Once the orchestrator returns a `RoutingDecision`, **deterministic Python owns
+specialist selection** — a single `if route is …` chain, no second semantic step.
+
+- **Maximum 2 LLM calls** per request (1 orchestrator + 1 specialist).
+- **No fallback agent** — if the specialist, provider, or parsing fails, the
+  error propagates; the dispatcher never tries another route or agent.
+- **No retry**, **no loop**, **no parallel execution** — the path is strictly
+  sequential.
+- **Missing brief context fails deterministically**: if the route is `brief`
+  and `provided_context` is absent/blank, the dispatcher raises
+  `MissingBriefContextError` *after* the (already-made) orchestrator call and
+  makes **no** specialist call. It never invents context or re-routes.
+
+Semantic routing, specialist behavior, and deterministic dispatch are still
+built and tested as separate units.
 
 ## 4. The four agents
 
@@ -347,12 +374,16 @@ abstractions).
   `ComparisonAgent`, `BriefAgent` (each one `ModelProvider` call, no tools, no
   delegation), their mock tests, `tests/models/test_specialist_models.py`, and
   `scripts/specialists_demo.py`.
+- **Phase 4** — single-hop dispatch: `app/models/dispatch.py` (`DispatchRequest`,
+  `DispatchResult`), `DecisionForgeDispatcher` + `app/orchestration/exceptions.py`
+  (`DispatchError`, `MissingBriefContextError`, `UnexpectedRouteError`),
+  `app/runtime.py` (`create_dispatcher`), dispatcher tests including the explicit
+  two-call-maximum test, and the first end-to-end demo
+  `scripts/dispatch_demo.py`. Routing, specialist behavior, and dispatch are
+  still each covered by their own unit tests.
 
 ### Not implemented yet
 
-- the deterministic **dispatcher** that turns a `RoutingDecision` into exactly
-  one specialist call (routing, specialist behavior, and dispatch are built
-  separately on purpose)
 - real search/fetch tools feeding `provided_context`
-- deterministic post-processing (formatting, validation, storage)
+- deterministic post-processing beyond result assembly (formatting, storage)
 - Agent Skills runtime, persistence, events wiring, HTTP/A2A transport, UI

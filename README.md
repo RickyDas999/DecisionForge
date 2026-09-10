@@ -31,7 +31,7 @@ User request
 > complexity, and is **not** planned for this version. See
 > `docs/architecture.md` -> "Architecture Reframe".
 
-## Status (Phase 3)
+## Status (Phase 4)
 
 Implemented:
 
@@ -41,16 +41,21 @@ Implemented:
 - `OrchestratorAgent` (single structured model call -> `RoutingDecision`)
 - the three **leaf** specialist agents — `ResearchAgent`, `ComparisonAgent`,
   `BriefAgent` — each one structured model call, no tools, no delegation
-- current-architecture structured result models (`app/models/specialists.py`)
-- zero-cost mock demos for the orchestrator and the specialists
+- current-architecture structured result models (`app/models/specialists.py`,
+  `app/models/dispatch.py`)
+- **`DecisionForgeDispatcher`** — the deterministic single-hop path: one
+  orchestrator call, then exactly one specialist call, then a typed
+  `DispatchResult`. No fallback, no retry, no loop, no parallelism.
+- `scripts/dispatch_demo.py` — the first zero-cost end-to-end mock demo, plus an
+  optional live path capped at 2 Anthropic calls.
 
 Not implemented yet:
 
-- the deterministic dispatch that turns a routing decision into one specialist
-  call (built separately next phase)
-- live web search / fetch tools
+- real web search / fetch tools (feeding `provided_context`)
 - Agent Skills runtime
-- database, UI, HTTP/A2A transport
+- persistence / run history
+- web UI
+- optional HTTP/A2A transport
 
 ## Model provider & cost
 
@@ -107,6 +112,7 @@ tests).
 ## Demos (zero cost)
 
 ```bash
+python scripts/dispatch_demo.py         # END-TO-END: request -> orchestrator -> one specialist -> result
 python scripts/orchestrator_demo.py     # routes 3 sample requests via MockModelProvider
 python scripts/specialists_demo.py      # runs all 3 leaf specialists via MockModelProvider
 python scripts/model_smoke_test.py      # exercises both provider methods via MockModelProvider
@@ -114,6 +120,8 @@ python scripts/model_smoke_test.py      # exercises both provider methods via Mo
 
 Each script has an explicit `--live` mode that makes real, potentially billable
 Anthropic requests and requires `MODEL_PROVIDER=anthropic` plus credentials.
+`dispatch_demo.py --live "<request>"` makes **at most 2** calls (orchestrator +
+one specialist; `--context "..."` needed if routing picks brief);
 `orchestrator_demo.py --live "<request>"` makes exactly one call;
 `specialists_demo.py --live --agent <name> "<request>"` makes exactly one call
 (and `--agent brief` also needs `--context "..."`). Do not run `--live` unless
