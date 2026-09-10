@@ -1,49 +1,61 @@
 # DecisionForge
 
-A local-first, multi-agent research and decision intelligence platform. Given a
-decision-oriented question (for example, *"Should our startup use PostgreSQL or
-MongoDB?"*), the finished system coordinates specialized agents to plan research,
-gather and judge evidence, analyze tradeoffs and risks, and produce a structured
-decision brief.
+A local-first, portfolio-quality application that demonstrates a **constrained
+multi-agent architecture** while keeping Claude token/API usage low.
 
-## Status
+## How it works
 
-The project is being built in phases. See `docs/architecture.md` for the full
-design.
+```
+User request
+   -> OrchestratorAgent   classifies the request (1 Claude call)
+   -> exactly one of:
+        ResearchAgent      investigate / gather / explain a topic
+        ComparisonAgent    compare options, evaluate tradeoffs, recommend
+        BriefAgent         turn supplied context into an executive brief / memo
+      (the selected specialist: 1 Claude call)
+   -> deterministic Python   validation, formatting, storage, events, UI
+   -> Result
+```
 
-- **Phase 0 — architecture scaffolding.** Package layout, core Pydantic domain
-  models, abstract contracts (agent, model provider, tool, skill, transport),
-  shared `RunState` + `RunStatus`, workflow state-transition validation, bounded
-  `WorkflowConfig`, event contracts, tests.
-- **Phase 1 — the model-provider layer.** A vendor-neutral `ModelProvider`
-  interface with two implementations: `MockModelProvider` (deterministic, offline,
-  free) and `AnthropicModelProvider` (real Claude access). Provider
-  configuration, a construction factory, provider exceptions, and an optional
-  manual smoke-test script.
+- **One OrchestratorAgent + three specialist agents.**
+- **Single-hop routing:** the orchestrator selects exactly one specialist; the
+  specialists never call other agents.
+- **At most 2 LLM calls per request** (orchestrator + one specialist). No agent
+  loops, no LLM retry loops, no parallel LLM calls, no multi-stage pipeline.
+- **Mock or Anthropic model provider**, behind one `ModelProvider` abstraction —
+  agents never import a vendor SDK.
+- **Zero-cost mock development mode** is the default.
 
-### Not built yet
+> An earlier design was a larger multi-stage research/judge/analysis/writer
+> pipeline. It was intentionally removed to minimize cost, latency, and
+> complexity, and is **not** planned for this version. See
+> `docs/architecture.md` -> "Architecture Reframe".
 
-- No DecisionForge agents exist (`PlannerAgent`, `ResearchAgent`, `JudgeAgent`,
-  `AnalysisAgent`, `WriterAgent`).
-- No working multi-agent workflow or orchestration engine exists.
-- No persistence, API, or frontend exists.
+## Status (Phase 2)
 
-## The model provider
+Implemented:
 
-Future agents depend only on `app.providers.model.ModelProvider`. They call
-`generate_text(...)` / `generate_structured(..., response_model=SomeModel)` and
-never touch a vendor SDK directly.
+- the model-provider layer (`MockModelProvider`, `AnthropicModelProvider`, config,
+  factory)
+- the routing schema (`AgentRoute`, `RoutingInput`, `RoutingDecision`)
+- `OrchestratorAgent` (single structured model call -> `RoutingDecision`)
 
-- **Mock mode is the default and requires no credentials.** `ModelConfig`
-  defaults to `provider="mock"`; the default factory returns `MockModelProvider`;
-  the test suite makes no network calls.
-- **Anthropic mode is opt-in.** Set `MODEL_PROVIDER=anthropic` together with
-  `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`. This uses the Anthropic API and
-  **may incur API charges billed to your Anthropic account**. Install the extra
-  with `pip install -e ".[anthropic]"`.
-- An **Anthropic API key/account is separate from a Claude Code / Claude.ai
-  subscription.** Subscription usage does not grant API access and is billed
-  differently.
+Not implemented yet:
+
+- the three specialist agents (`ResearchAgent`, `ComparisonAgent`, `BriefAgent`)
+- the deterministic dispatch that invokes the selected specialist
+- deterministic post-processing, persistence, events, UI
+
+## Model provider & cost
+
+- **Mock is the default and needs no credentials.** The test suite and the
+  default demo make no network calls.
+- **Anthropic mode is opt-in:** set `MODEL_PROVIDER=anthropic` with
+  `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`, and install the extra
+  (`pip install -e ".[anthropic]"`). This uses the Anthropic API and **may incur
+  charges billed to your Anthropic account**.
+- An Anthropic API key/account is **separate** from a Claude Code / Claude.ai
+  subscription and is billed differently.
 
 ## Requirements
 
@@ -57,11 +69,7 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-Optional, only for real Anthropic calls:
-
-```bash
-pip install -e ".[dev,anthropic]"
-```
+Optional, only for real Anthropic calls: `pip install -e ".[dev,anthropic]"`.
 
 ## Test
 
@@ -69,16 +77,17 @@ pip install -e ".[dev,anthropic]"
 pytest
 ```
 
-All tests pass and make **no** network calls. They cover the domain models,
-state transitions, workflow config, and both model providers (the Anthropic SDK
-is fully faked).
+All tests pass and make **no** network calls (the Anthropic SDK is fully faked in
+tests).
 
-Optional manual smoke test (mock mode — no network, no cost):
+## Demos (zero cost)
 
 ```bash
-python scripts/model_smoke_test.py
+python scripts/orchestrator_demo.py     # routes 3 sample requests via MockModelProvider
+python scripts/model_smoke_test.py      # exercises both provider methods via MockModelProvider
 ```
 
-The `--live` flag on that script makes real, potentially billable Anthropic
-requests and requires `MODEL_PROVIDER=anthropic` plus credentials. Do not run it
-unless you intend to spend API credit.
+Each script has an explicit `--live` mode that makes real, potentially billable
+Anthropic requests and requires `MODEL_PROVIDER=anthropic` plus credentials.
+`orchestrator_demo.py --live "<request>"` makes exactly one call. Do not run
+`--live` unless you intend to spend API credit.

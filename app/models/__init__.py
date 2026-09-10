@@ -1,4 +1,12 @@
-"""Core Pydantic domain models for DecisionForge."""
+"""Core Pydantic domain models for DecisionForge.
+
+Current architecture (post-reframe): ``routing`` holds the models used by the
+single-hop OrchestratorAgent. The ``analysis`` / ``brief`` / ``judging`` /
+``planning`` / ``research`` / ``state`` modules are **legacy** — they describe the
+earlier multi-stage pipeline that is no longer the target. They are kept only so
+existing tests keep passing; do not build new code on them. See
+``docs/architecture.md`` -> "Architecture Reframe".
+"""
 
 from app.models.analysis import (
     AlternativesAnalysis,
@@ -19,15 +27,25 @@ from app.models.research import (
     ResearchTask,
     Source,
 )
+from app.models.routing import AgentRoute, RoutingDecision, RoutingInput
 from app.models.state import RunState, RunStatus
 
 __all__ = [
+    # Current architecture
+    "AgentRoute",
+    "RoutingDecision",
+    "RoutingInput",
+    # Shared
+    "EventType",
+    "RunState",
+    "RunStatus",
+    "WorkflowEvent",
+    # Legacy (pre-reframe multi-stage pipeline; see docs/architecture.md)
     "AlternativesAnalysis",
     "AnalysisInput",
     "AnalysisMode",
     "BriefInput",
     "DecisionAnalysis",
-    "EventType",
     "FinalBrief",
     "JudgeInput",
     "JudgeResult",
@@ -39,9 +57,6 @@ __all__ = [
     "ResearchTask",
     "ResearchTrack",
     "RiskAnalysis",
-    "RunState",
-    "RunStatus",
     "SecondaryAnalysisInput",
     "Source",
-    "WorkflowEvent",
 ]

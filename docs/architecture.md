@@ -2,315 +2,281 @@
 
 ## 1. What DecisionForge is
 
-DecisionForge is a local-first, portfolio-quality multi-agent research and
-decision intelligence platform. A user submits a decision-oriented question such
-as *"Should our startup use PostgreSQL or MongoDB?"* and the system coordinates a
-small set of specialized agents to research the question, evaluate the quality of
-the evidence, analyze the tradeoffs and risks, and emit a structured decision
-brief.
+DecisionForge is a local-first, portfolio-quality application that demonstrates a
+**constrained multi-agent architecture** while keeping Claude token/API usage to a
+minimum.
 
-The project exists to demonstrate — independently, in Python, with Claude as the
-eventual LLM provider — the architectural principles of high-performance
-multi-agent systems: specialized agents, hierarchical delegation, deterministic
-orchestration, sequential and parallel workflows, bounded iterative loops, shared
-typed state, structured outputs, reusable Agent Skills with progressive
-disclosure, tool use, observability, and eventual local-vs-remote execution.
-
-It is deliberately **not** an unrestricted agent swarm. The orchestrator owns
-workflow control and delegation; specialist agents never arbitrarily call other
-agents.
-
-## 2. The intended multi-agent workflow
+A user submits a request. An **OrchestratorAgent** classifies it and selects
+exactly one of three specialist agents. That specialist does the work. Everything
+after the specialist returns is deterministic Python.
 
 ```
-User request
-    -> PlannerAgent                     (normalize question, identify options, build research tracks)
-    -> ResearchAgent x N (parallel)     (one instance per independent research track)
-    -> Research aggregation             (deterministic merge of track results)
-    -> JudgeAgent                       (structured verdict on evidence quality)
-         |- rejected -> follow-up ResearchAgent pass -> JudgeAgent again
-         |             (repeat until approved or max_research_iterations reached)
-         '- approved -> continue
-    -> AnalysisAgent (PRIMARY mode)     (option assessments + recommendation)
-    -> AnalysisAgent (RISK) + AnalysisAgent (ALTERNATIVES)   (parallel)
-    -> WriterAgent                      (assemble the FinalBrief)
-    -> Deterministic validation         (retry writing up to max_validation_attempts)
-    -> Final result
+User
+  |
+  v
+OrchestratorAgent            (1 Claude call: classification only)
+  |
+  v
+select exactly one route
+  |
+  +--> ResearchAgent   \
+  +--> ComparisonAgent  }  (1 Claude call: the selected specialist only)
+  +--> BriefAgent      /
+  |
+  v
+deterministic Python        (validation, formatting, storage, events, UI)
+  |
+  v
+Result
 ```
 
-Approximately five core LLM agent implementations back this workflow:
+## 2. Hard architectural rules
 
-| Agent           | Responsibility                                                        | Reuse                                              |
-| --------------- | -------------------------------------------------------------------- | ------------------------------------------------- |
-| `PlannerAgent`  | Understand and normalize the decision, identify options, build tracks | single instance                                   |
-| `ResearchAgent` | Execute one research track                                            | instantiated per track; instances run concurrently |
-| `JudgeAgent`    | Evaluate evidence, decide sufficiency, emit follow-up queries         | single instance, invoked once per loop iteration  |
-| `AnalysisAgent` | Decision analysis                                                     | reused in `PRIMARY`, `RISK`, `ALTERNATIVES` modes  |
-| `WriterAgent`   | Produce the final structured brief                                    | single instance                                   |
+1. **Maximum LLM calls per normal request = 2** — one orchestrator call, one
+   specialist call.
+2. The orchestrator selects **exactly one** specialist.
+3. Specialists **never** call other agents — not the orchestrator, not each
+   other, not themselves, not any future agent.
+4. **No agent loops.**
+5. **No LLM retry loops.**
+6. **No parallel LLM execution.**
+7. **No multi-stage LLM pipeline.**
+8. All business logic after the selected specialist is **deterministic**.
+9. A specialist may later use tools (search, fetch). **Tools are deterministic
+   Python operations, not agents** — they do not count toward the LLM-call limit.
+10. `ModelProvider` remains the only vendor abstraction; agents never import an
+    SDK.
+11. **Mock mode is the cost-safe development default.**
 
-## 3. Why the system separates intelligence from orchestration
+If a specialist fails, the failure is surfaced through ordinary Python error
+handling. No other agent is invoked automatically.
 
-A single all-knowing orchestrator prompt is brittle, hard to test, expensive to
-run, and impossible to reason about. DecisionForge instead splits the system
-along a clean seam:
+## 3. The delegation graph
 
-- **LLMs handle semantic judgment.**
-- **Deterministic Python handles workflow mechanics.**
+```
+                  OrchestratorAgent
+                 /       |        \
+                /        |         \
+        ResearchAgent  ComparisonAgent  BriefAgent
+```
 
-This keeps each half simple, independently testable, and cheap to operate. Most
-of the workflow logic can be exercised with a mock model provider and no paid API
-usage.
+There are no edges between the specialists. The orchestrator is the only node
+allowed to choose an outgoing edge, and it chooses exactly one. This models
+controlled parent/sub-agent routing without an open-ended agent graph.
 
-## 4. Why semantic reasoning is delegated to LLM agents
+## 4. The four agents
 
-Some sub-problems have no deterministic solution: understanding user intent,
-deciding what to research, judging whether evidence is strong enough, weighing
-tradeoffs, and articulating a recommendation. These are delegated to LLM agents,
-each with a narrow, well-scoped responsibility and a typed output contract.
+### OrchestratorAgent (implemented)
 
-## 5. Why deterministic Python owns workflow sequencing
+`app/agents/orchestrator.py`. `BaseAgent[RoutingInput, RoutingDecision]`.
 
-Running agents in sequence, running independent agents in parallel, incrementing
-and bounding loop counters, transitioning state, retrying, timing out, persisting
-results, and emitting events are all mechanical concerns with correct, testable,
-deterministic implementations. Putting them in code (not a prompt) makes the
-system predictable and debuggable, and prevents runaway cost or infinite loops.
+- Depends only on `ModelProvider` (constructor argument).
+- Makes **one** `generate_structured(..., response_model=RoutingDecision)` call.
+- Returns a `RoutingDecision` — nothing else.
+- Does **not** answer the request, research, compare, write a brief, call tools,
+  touch `RunState`, loop, retry, or invoke a specialist.
+- `OrchestratorAgent.run()` never contains `if route == ...: call specialist`.
+  That deterministic dispatch layer is a later phase.
 
-## 6. Why agents use typed contracts instead of arbitrary prose handoffs
+### ResearchAgent (not implemented)
+
+For requests that primarily ask to investigate, gather facts, explain via
+research, find current information, or summarize a topic from external
+information. May later use free search/fetch **tools** (still one LLM call).
+
+### ComparisonAgent (not implemented)
+
+For requests that ask to compare two or more options, evaluate tradeoffs, choose
+between alternatives, or recommend one. Produces a structured comparison.
+
+### BriefAgent (not implemented)
+
+For requests where the user already supplies context/material and wants it turned
+into an executive brief, decision memo, or polished summary. It works only from
+the supplied context; if there is not enough material, it says so in its
+structured result. It never calls `ResearchAgent` or any other agent first.
+
+## 5. Routing models
+
+`app/models/routing.py`:
+
+- **`AgentRoute`** — a `str` enum with **exactly** `RESEARCH`, `COMPARISON`,
+  `BRIEF`. There is no `unknown` route; the orchestrator commits to the dominant
+  intent.
+- **`RoutingInput`** — `{ user_request: str }`, rejected if empty/whitespace.
+- **`RoutingDecision`** — `{ route: AgentRoute, reasoning: str }`. `reasoning` is
+  a short, shareable classification rationale for debugging (e.g. "The user is
+  explicitly comparing two databases"). It is **not** a private chain-of-thought
+  trace.
+
+Route validity is enforced by Pydantic: a model response with a route outside the
+enum fails through the provider's existing `StructuredOutputError` path. There is
+no fuzzy matching and no silent remapping of invalid names.
+
+## 6. Routing semantics
+
+| Route        | Choose when the primary request is to...                                   |
+| ------------ | -------------------------------------------------------------------------- |
+| `research`   | investigate, gather facts, explain via research, find current information  |
+| `comparison` | compare 2+ choices, evaluate tradeoffs, choose between alternatives        |
+| `brief`      | transform supplied context/material into a memo, brief, or polished summary |
+
+Priority when a request could fit more than one:
+
+1. Explicitly comparing alternatives / choosing between options -> `comparison`.
+2. Otherwise, primarily gathering or investigating information -> `research`.
+3. Otherwise, supplying source material and asking to transform it -> `brief`.
+
+Routing is intentionally **LLM-backed** (not keyword matching) to demonstrate
+semantic delegation.
+
+## 7. Why intelligence is separated from orchestration
+
+**LLMs handle semantic tasks:** determining user intent, specialist reasoning,
+producing structured output.
+
+**Python handles deterministic application behavior:** routing on the
+orchestrator's output, validating the route, invoking exactly one specialist,
+formatting results, validating structured outputs, error handling, and (later)
+storage, events, and UI.
+
+This keeps the token budget predictable, the system debuggable, and the control
+flow explicit.
+
+## 8. Why typed contracts instead of prose handoffs
 
 Every agent consumes a Pydantic input model and returns a Pydantic output model.
-Structured handoffs mean:
+Deterministic code can branch on `RoutingDecision.route` directly, validate every
+structured output, and later persist, render, and export results. An agent can
+move behind an HTTP boundary without changing its callers. Prose handoffs would
+make all of that fragile.
 
-- the orchestrator can branch deterministically (e.g. on `JudgeResult.approved`)
-  and reuse fields directly (e.g. `JudgeResult.follow_up_queries`)
-- outputs can be validated, persisted, rendered in a UI, and exported
-- an agent can later move behind an HTTP boundary without changing callers
-- tests can assert on fields instead of parsing free text
+## 9. Shared runtime context
 
-Prose handoffs would make all of the above fragile.
+`AgentRuntimeContext` (`app/agents/base.py`) is a small dataclass
+(`run_id`, `iteration`) passed to `agent.run()`. It deliberately does not carry
+model clients, tools, databases, or skill registries.
 
-## 7. How RunState acts as shared state
+`RunState` (`app/models/state.py`) will become the deterministic state container
+threaded through the deterministic post-processing steps. It is a plain data
+model today, not a service.
 
-`app/models/state.py` defines `RunState`: a single typed container carrying the
-run id, original query, current `RunStatus`, research iteration counter, and the
-accumulated artifacts (`research_plan`, `research_results`, `judge_result`,
-`analysis`, `risk_analysis`, `alternatives_analysis`, `final_brief`), plus errors
-and timezone-aware UTC timestamps.
+## 10. Model provider layer
 
-Each orchestration stage reads the fields it needs from `RunState` and writes its
-result back. In Phase 0 it is a plain data model — deliberately not a service,
-repository, or event emitter.
-
-## 8. How future sequential workflows will work
-
-A sequential workflow is an ordered list of stages. The deterministic engine (a
-later phase) will, for each stage: validate the `RunStatus` transition via
-`validate_transition`, emit a `workflow.status.changed` event, invoke the stage's
-agent through the `AgentClient` transport, write the typed result into `RunState`,
-and advance. Any stage failure transitions the run to `FAILED`.
-
-## 9. How future parallel workflows will work
-
-Where stages are independent, the engine will fan them out concurrently
-(`asyncio.gather` or a bounded task group) and then deterministically aggregate
-the results. Two places use this:
-
-- the initial research fan-out — up to `max_parallel_researchers` `ResearchAgent`
-  instances, one per `ResearchTrack`
-- secondary analysis — `RISK` and `ALTERNATIVES` `AnalysisAgent` passes together
-
-Concurrency is owned by the engine, not by the agents.
-
-## 10. Why parallel agents should operate on independent subtasks
-
-Parallelism is only safe when tasks do not depend on each other's output and do
-not write the same state. `PlannerAgent` deliberately decomposes the question into
-*independent* research tracks so the fan-out is race-free: each `ResearchAgent`
-instance owns one track and produces one `ResearchResult`, and aggregation is a
-pure deterministic merge afterward. The same reasoning applies to the risk and
-alternatives analyses, which read the same inputs but produce disjoint outputs.
-
-## 11. How the bounded Judge/research loop is intended to work
-
-1. Aggregate the current `research_results`.
-2. Invoke `JudgeAgent` -> `JudgeResult`.
-3. If `approved` is true, emit `judge.approved` and leave the loop.
-4. Otherwise emit `judge.rejected`, increment `research_iteration`, and — if the
-   counter is still below `max_research_iterations` — run another `ResearchAgent`
-   pass seeded with `JudgeResult.follow_up_queries`, then return to step 1.
-5. If the iteration cap is reached first, the loop exits with the best evidence so
-   far and the workflow continues to analysis (the cap always wins).
-
-The LLM decides *whether* evidence is sufficient and *what* to ask next; Python
-decides *how many times* the loop may run.
-
-## 12. Why loops have hard maximum iteration limits
-
-An LLM judge can, in principle, never be satisfied. `WorkflowConfig`
-(`max_research_iterations`, `max_validation_attempts`) puts a deterministic
-ceiling on every loop so a run always terminates, cost stays bounded, and latency
-is predictable. These limits are defined in Phase 0, before any loop engine
-exists, precisely so that no later loop can be written without one.
-
-## 13. How Agent Skills will later support progressive disclosure
-
-`app/skills/base.py` defines the contract for reusable Agent Skills
-(`research`, `source-quality`, `decision-analysis`, `executive-brief`). The future
-runtime will load skill context in three stages:
-
-- **Stage 1 — Discovery:** load only `SkillMetadata` (name, description) so an
-  agent can tell whether a skill is relevant.
-- **Stage 2 — Activation:** load the full `SkillDefinition` (the `SKILL.md` body /
-  `instructions`) only when the skill is actually needed.
-- **Stage 3 — Extension:** load `references` and `scripts` only when a task
-  requires them.
-
-This keeps prompt context small until depth is genuinely required. Phase 0 ships
-the contracts only — no `SKILL.md` parsing, directory scanning, or script
-execution.
-
-## 14. How local-first execution will later support optional remote agents
-
-`app/transport/base.py` defines `AgentClient` with a single
-`invoke(agent_name, payload) -> BaseModel` method. Orchestration depends only on
-this interface, so the same workflow code works whether an agent runs in-process
-or over HTTP:
-
-```
-AgentClient
-├── LocalAgentClient   (later: call the agent object directly, in-process)
-└── HttpAgentClient    (later: POST the payload to an agent service)
-```
-
-Similarly, agents depend on the `ModelProvider` abstraction rather than any
-specific vendor SDK, so `MockProvider` / `AnthropicProvider` / `LocalProvider` are
-interchangeable. The transport clients are not implemented yet; the providers
-arrive in Phase 1 (see the next section).
-
-## 15. The Model Provider layer (Phase 1)
-
-### Why agents depend on `ModelProvider`, not Anthropic
-
-Every future agent calls the LLM through the single abstract interface in
-`app/providers/model.py`:
-
-```python
-result = await provider.generate_structured(
-    system_prompt=...,
-    user_prompt=...,
-    response_model=ResearchPlan,
-)
-```
-
-An agent never imports the `anthropic` SDK, never sees a raw SDK response object,
-and never knows whether it is talking to a mock, to Anthropic, or to some future
-local model. This keeps vendor-specific code in exactly one place
-(`app/providers/anthropic.py`) instead of leaking a hard Anthropic dependency
-into all five agents and the orchestrator. Swapping or adding a provider is a
-change to one module plus the factory.
-
-### The boundary
+Agents depend only on the abstract `ModelProvider` (`app/providers/model.py`):
 
 ```
 Agent  ->  ModelProvider  ->  (MockModelProvider | AnthropicModelProvider)  ->  anthropic SDK
 ```
 
-The orchestrator sits above the agents and likewise never contains SDK calls.
+- **`MockModelProvider`** replays queued responses, records every call, performs
+  no I/O. Entire workflows and agent tests run against it for free.
+- **`AnthropicModelProvider`** wraps `anthropic.AsyncAnthropic`, does no work at
+  import time, makes no network request in `__init__`, and for structured output
+  embeds the response model's JSON Schema in the prompt then validates the reply
+  with Pydantic. It does **not** repair malformed output or retry — that is not
+  the provider's job (and, under the reframe, nothing else's either: a failed
+  request surfaces as an error).
+- **`ModelConfig`** defaults to `provider="mock"`. `create_model_provider()` with
+  the default config returns a `MockModelProvider` and makes no network call.
+  Anthropic is reached only when `MODEL_PROVIDER=anthropic` is set together with
+  `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`, and only when code actually calls a
+  `generate_*` method.
 
-### `MockModelProvider` — zero-cost development
+## 11. Local-first, optional remote later
 
-`MockModelProvider` replays queued responses and records every call
-(`operation`, `system_prompt`, `user_prompt`, `response_model`). It performs no
-I/O. Because it satisfies the same interface, entire workflows, loops, and agent
-tests can run against it with no API key and no cost. Structured responses are
-validated against the requested `response_model`, so a mock that returns the
-wrong shape fails loudly rather than silently handing back an incompatible
-object.
+`AgentClient` (`app/transport/base.py`) is an abstract
+`invoke(agent_name, payload) -> BaseModel`. Today every agent runs in-process.
+Later, a specialist could run as an HTTP/A2A-style service behind the same
+interface without changing the orchestrator or the dispatch layer. No transport
+client is implemented yet.
 
-### `AnthropicModelProvider` — real Claude access
+## 12. Agent Skills (later)
 
-`AnthropicModelProvider` wraps `anthropic.AsyncAnthropic`. It takes explicit
-configuration (`api_key`, `model`, `max_tokens`, `temperature`), constructs
-nothing at import time, and makes no network request in `__init__`. For
-structured output it embeds the response model's JSON Schema in the system
-prompt, then parses the returned text (tolerating a single surrounding
-```json fence), and validates it with Pydantic.
+`app/skills/base.py` defines the skill contracts. The future runtime will use
+progressive disclosure — load metadata for discovery, the `SKILL.md` body on
+activation, references/scripts only when needed. No skill runtime exists yet.
 
-### Why structured output is validated with Pydantic
+## 13. Architecture Reframe
 
-The whole system depends on typed handoffs (§6). A provider that returned loosely
-shaped dicts would push validation into every agent. Instead the provider
-guarantees its contract: `generate_structured` returns an instance of
-`response_model` or raises `StructuredOutputError`. Callers can trust the type.
+**An earlier version of this document described a different system.** That design
+is no longer the target and is not planned for the current portfolio version.
 
-### Why the provider does NOT own retry policy
+The earlier design was a multi-stage research-and-decision pipeline with:
 
-If a model returns malformed JSON, `AnthropicModelProvider` raises immediately —
-it does not silently repair the output and does not run its own correction loop.
-Retry/repair is a *workflow* concern: how many times to re-ask, whether to widen
-the research, when to fail the run. That belongs to the deterministic
-orchestration engine (a later phase) alongside `max_research_iterations` and
-`max_validation_attempts`, not buried in the provider.
+- a `PlannerAgent` that decomposed the question into research tracks
+- multiple `ResearchAgent` instances running in parallel
+- research aggregation
+- a `JudgeAgent` that scored evidence and emitted follow-up queries
+- a bounded `Judge -> Research -> Judge` loop
+- separate `AnalysisAgent`, risk-analysis, and alternatives-analysis passes
+  (the latter two in parallel)
+- a `WriterAgent` as a downstream pipeline stage
+- deterministic validation with a bounded `Writer` retry loop
 
-### Why mock is the safe default
+It was removed **deliberately** to minimize cost, latency, and complexity:
 
-`ModelConfig` defaults to `provider = "mock"`. `ModelConfig.from_env()` with no
-environment variables returns a mock config and never raises. The factory
-(`create_model_provider`) builds a `MockModelProvider` for the default config and
-makes no network call. Anthropic is reached only when `MODEL_PROVIDER=anthropic`
-is set together with `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` — and even then
-only when application or script code actually calls a `generate_*` method. This
-is deliberate: it makes accidental API spend structurally hard.
+- token spend per request was unbounded (the Judge loop) and always multi-call
+- parallel and sequential LLM stages multiplied API cost and failure modes
+- the value of the extra stages did not justify the cost for a portfolio project
 
-### Future `LocalProvider`
+### What is gone (do not implement, do not add placeholders for)
 
-A local-model provider (e.g. an on-device or self-hosted model) would be a third
-implementation of the same interface and a third `ModelProviderType` value.
-Nothing above the provider layer changes.
+`PlannerAgent`, `JudgeAgent`, standalone `AnalysisAgent`, `RiskAgent`,
+`AlternativesAgent`, `WriterAgent` as a pipeline stage, the Research/Judge loop,
+Judge->Research feedback, bounded agent loops, iterative refinement, automatic
+critique, parallel research agents, parallel risk/alternatives agents, sequential
+LLM pipelines, research aggregation, synthesis pipelines, automatic agent
+retries, workflow-level LLM retries, multi-agent fan-out/fan-in, autonomous agent
+conversations, and arbitrary peer transfers.
 
-## 17. What has been built so far — and what has not
+### Legacy models still in the tree
 
-### Phase 0 — architecture scaffolding
+These Phase 0 models describe the removed pipeline and are kept **only** so the
+existing Phase 0/1 tests keep passing:
 
-- project skeleton and packaging (`pyproject.toml`, `.gitignore`, `.env.example`)
-- core Pydantic domain models: `planning`, `research`, `judging`, `analysis`,
-  `brief`, `events`, `state`
-- abstract contracts: `BaseAgent` + `AgentRuntimeContext`, `ModelProvider`,
-  `BaseTool` + `ToolResult`, `SkillRegistry` + `SkillMetadata` /
-  `SkillDefinition`, `AgentClient`
-- `RunState` and the `RunStatus` lifecycle enum
-- explicit `validate_transition` state-machine rules + `InvalidStateTransition`
-- `WorkflowConfig` with bounded defaults
-- `EventType` / `WorkflowEvent` contracts
-- this document and `README.md`
-- tests for models, validation bounds, transitions, and config
+`app/models/planning.py` (`PlannerInput`, `ResearchPlan`, `ResearchTrack`),
+`app/models/research.py` (`ResearchFinding`, `ResearchResult`, `ResearchTask`,
+`Source`), `app/models/judging.py` (`JudgeInput`, `JudgeResult`),
+`app/models/analysis.py` (`AnalysisMode`, `AnalysisInput`, `OptionAssessment`,
+`DecisionAnalysis`, `SecondaryAnalysisInput`, `RiskAnalysis`,
+`AlternativesAnalysis`), `app/models/brief.py` (`BriefInput`, `FinalBrief`), and
+the multi-stage members of `RunStatus` / `app/orchestration/transitions.py`.
 
-### Phase 1 — the model-provider layer
+**Rules for legacy code:** do not build new functionality on it; do not treat its
+presence as evidence the old design is planned. A dedicated, controlled cleanup
+phase will remove it. New specialist agents (`research`, `comparison`, `brief`)
+will get their own fresh, minimal models.
 
-- `ModelConfig` + `ModelProviderType` (defaults to mock; `from_env` helper)
-- provider exceptions: `ModelProviderError`, `ModelConfigurationError`,
-  `ModelResponseError`, `StructuredOutputError`, `MockResponseExhaustedError`
-- `MockModelProvider` — queued deterministic responses + call history
-- `AnthropicModelProvider` — `AsyncAnthropic` wrapper, JSON-schema-guided
-  structured output, no import-time or `__init__` network activity
-- `create_model_provider` factory (no network calls; mock by default)
-- optional `scripts/model_smoke_test.py` (mock by default; `--live` gated)
-- provider tests, all with the Anthropic SDK fully faked
+### What the project still demonstrates
 
-### Intentionally does NOT exist yet
+Parent/orchestrator + specialist hierarchy, constrained single-hop delegation,
+specialized agents, structured Pydantic outputs, shared runtime context, the
+model-provider abstraction, local-first execution, and — later — Agent Skills
+with progressive disclosure, tool use, optional remote transport, execution
+tracing, and persistence. The project does **not** aim to mechanically implement
+every multi-agent pattern (no `SequentialAgent` / `ParallelAgent` / `LoopAgent`
+abstractions).
 
-- any concrete agent (`PlannerAgent`, `ResearchAgent`, `JudgeAgent`,
-  `AnalysisAgent`, `WriterAgent`)
-- the orchestration engine: sequential, parallel, or loop execution; retries;
-  timeout handling; state-transition driving
-- provider-side retry/repair of malformed model output
-- web search or HTTP fetching
-- FastAPI, SSE/WebSockets, or any frontend
-- SQLite / SQLAlchemy / persistence
-- HTTP agent services or `LocalAgentClient` / `HttpAgentClient` implementations
-- a real Agent Skills loader or real validation scripts
-- an event bus
-- Docker, Kubernetes, Redis, Celery, message queues, vector databases, auth
+## 14. Build status
 
-There is still no multi-agent workflow. Phase 1 only makes the LLM boundary
-usable and cheap to test against.
+### Implemented
+
+- **Phase 0** — package skeleton; contracts (`BaseAgent` + `AgentRuntimeContext`,
+  `ModelProvider`, `BaseTool` + `ToolResult`, `SkillRegistry`, `AgentClient`);
+  `RunState` / `RunStatus`; `WorkflowConfig`; event contracts; tests. *(Some
+  models are now legacy — see §13.)*
+- **Phase 1** — `ModelProvider` layer: `ModelConfig` + `ModelProviderType`,
+  provider exceptions, `MockModelProvider`, `AnthropicModelProvider`,
+  `create_model_provider` factory, `scripts/model_smoke_test.py`, provider tests.
+- **Phase 2** — routing foundation: `AgentRoute` / `RoutingInput` /
+  `RoutingDecision`, `OrchestratorAgent` + system prompt, orchestrator tests,
+  `scripts/orchestrator_demo.py`, this reframed document.
+
+### Not implemented yet
+
+- `ResearchAgent`, `ComparisonAgent`, `BriefAgent`
+- the deterministic dispatch layer that turns a `RoutingDecision` into exactly
+  one specialist call
+- deterministic post-processing (formatting, validation, storage)
+- persistence, events wiring, HTTP transport, UI
