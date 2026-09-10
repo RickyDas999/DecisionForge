@@ -147,12 +147,14 @@ function showError(status, data) {
 
 // ---- data flow -------------------------------------------------------------
 async function openRun(runId, keepError) {
+  // Only used for the recent-runs list (persistence enabled). In stateless
+  // mode this 404s and we simply do nothing.
   const { ok, data } = await api("GET", `/api/runs/${encodeURIComponent(runId)}`);
   if (!ok) return;
   if (keepError) {
-    renderTrace(data.events);
+    renderTrace(data.events || []);
   } else {
-    showRun(data.run, data.events);
+    showRun(data, data.events || []);
   }
 }
 
@@ -187,7 +189,9 @@ async function submit(evt) {
       provided_context: context || null,
     });
     if (ok) {
-      await openRun(data.run_id);
+      // POST returns the full run + its event trace — render directly, no
+      // follow-up request (works whether or not persistence is enabled).
+      showRun(data, data.events || []);
     } else if (status === 422) {
       showError(422, { error_type: "ValidationError", detail: "Request cannot be empty." });
     } else {

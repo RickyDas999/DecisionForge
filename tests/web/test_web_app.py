@@ -140,6 +140,15 @@ def test_research_run_succeeds_and_is_persisted(tmp_path) -> None:
     assert resp.status_code == 200
     body = resp.json()
 
+    # the POST response carries the full trace — no follow-up request needed
+    assert [e["event_type"] for e in body["events"]] == [
+        "run.started",
+        "route.selected",
+        "specialist.started",
+        "specialist.completed",
+        "run.completed",
+    ]
+
     assert body["status"] == "completed"
     assert body["route"] == "research"
     assert body["selected_specialist"] == "ResearchAgent"
@@ -293,8 +302,8 @@ def test_get_run_returns_run_and_ordered_events(tmp_path) -> None:
     ).json()["run_id"]
 
     detail = rig.client.get(f"/api/runs/{run_id}").json()
-    assert detail["run"]["run_id"] == run_id
-    assert detail["run"]["result"]["summary"] == "s"
+    assert detail["run_id"] == run_id
+    assert detail["result"]["summary"] == "s"
     ets = [e["event_type"] for e in detail["events"]]
     assert ets == [
         "run.started",

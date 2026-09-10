@@ -549,12 +549,67 @@ network, no credentials. Run it with `python scripts/web_demo.py` or
 server is a later, user-driven change (`create_app` with a service built from
 `create_model_provider(ModelConfig.from_env())`).
 
+`POST /api/runs` returns the run **and** its full event trace (`RunResult` =
+flat run fields + `events`), so the browser renders a completed run from one
+response — no follow-up `GET`. `GET /api/runs` / `GET /api/runs/{id}` back the
+recent-runs list (empty / 404 when persistence is disabled).
+
 ### Not in this phase
 
 No SSE/WebSockets/live streaming (submit → wait → render the completed trace),
-no authentication, no accounts, no deployment tooling.
+no authentication, no accounts.
 
-## 16. Architecture Reframe
+## 16. Deployment topology (Vercel)
+
+DecisionForge deploys as a single Vercel Python serverless function — no second
+service, no hosted database.
+
+### Local (durable history)
+
+```
+Browser -> FastAPI (uvicorn) -> DecisionForgeService -> Dispatcher -> ... -> SQLite
+```
+
+### Vercel (stateless)
+
+```
+Browser
+  -> Vercel Python function  (api/index.py -> app.web.deployment:create_deployment_app)
+  -> FastAPI
+  -> DecisionForgeService     (repository = NullRunRepository)
+       -> Dispatcher: Orchestrator (LLM #1) -> optional search (0) -> one specialist (LLM #2)
+  -> RunResult (run + event trace, assembled in-memory)
+  -> HTTP response  ->  UI renders directly
+```
+
+- **`api/index.py`** — the entrypoint. Puts the repo root on `sys.path`, imports
+  `create_deployment_app()`, exposes module-level `app`. Import is
+  side-effect-safe: no network, no LLM call, no SQLite file, no credentials in
+  the default (mock) mode.
+- **`app/web/deployment.py`** — reads process env only (`ModelConfig.from_env(use_dotenv=False)`,
+  `SearchConfig.from_env()`, `PERSISTENCE_ENABLED`). `MODEL_PROVIDER=mock`
+  (default) → `DemoModelProvider`; `MODEL_PROVIDER=anthropic` → the real provider
+  (needs `ANTHROPIC_API_KEY` + `ANTHROPIC_MODEL`; billable; still exactly 2 LLM
+  calls). Search is off unless `SEARCH_PROVIDER=duckduckgo`.
+- **`requirements.txt`** — the production deps Vercel installs (`pydantic`,
+  `pyyaml`, `fastapi`; `anthropic` / `ddgs` only if the matching mode is
+  enabled). `pyproject.toml` extras remain for local dev/test.
+- **`vercel.json`** — one line: `includeFiles` so the function bundle contains the
+  `SKILL.md` files, HTML template, and static assets (read by path at runtime).
+
+### Why SQLite is not the durable Vercel store
+
+Vercel serverless functions have an **ephemeral, non-shared filesystem** (only
+`/tmp` is writable, and it does not persist between invocations or across the
+many concurrent function instances). A SQLite file written during one request is
+gone by the next. Rather than add a hosted database, the deployed app runs
+**stateless**: `NullRunRepository` accepts writes as no-ops, and the service
+assembles the run record + event trace in memory and returns them in the
+`POST /api/runs` response. Durable history stays a **local** feature
+(`PERSISTENCE_ENABLED=true` + `SQLiteRunRepository`), which is where it is
+useful — development, tests, local demos.
+
+## 17. Architecture Reframe
 
 **An earlier version of this document described a different system.** That design
 is no longer the target and is not planned for the current portfolio version.
@@ -622,14 +677,14 @@ execution tracing (§14), and — later — optional remote transport and a loca
 The project does **not** aim to mechanically implement every multi-agent pattern
 (no `SequentialAgent` / `ParallelAgent` / `LoopAgent` abstractions).
 
-## 17. Build status
+## 18. Build status
 
 ### Implemented
 
 - **Phase 0** — package skeleton; contracts (`BaseAgent` + `AgentRuntimeContext`,
   `ModelProvider`, `BaseTool` + `ToolResult`, `SkillRegistry`, `AgentClient`);
   `RunState` / `RunStatus`; `WorkflowConfig`; event contracts; tests. *(Some
-  models are now legacy — see §16.)*
+  models are now legacy — see §17.)*
 - **Phase 1** — `ModelProvider` layer: `ModelConfig` + `ModelProviderType`,
   provider exceptions, `MockModelProvider`, `AnthropicModelProvider`,
   `create_model_provider` factory, `scripts/model_smoke_test.py`, provider tests.
@@ -681,11 +736,19 @@ The project does **not** aim to mechanically implement every multi-agent pattern
   `tests/web/`, optional `service.run(..., run_id=…)`, `create_service` unchanged.
   `fastapi` + `httpx` (dev/test), `uvicorn` (`[web]` extra). Zero LLM calls in
   the web layer.
+- **Phase 9** — Vercel deployability (§16): `api/index.py` entrypoint,
+  `app/web/deployment.py` (`create_deployment_app`, env-driven,
+  `PERSISTENCE_ENABLED`), `app/persistence/base.py` (`RunRepository` protocol) +
+  `app/persistence/null.py` (`NullRunRepository`), `service.run()` returns
+  `RunOutcome` (record + events) assembled in-memory, `POST /api/runs` returns
+  `RunResult` (run + trace, one response), `GET /api/health`, `requirements.txt`,
+  `vercel.json`, `tests/web/test_deployment.py`.
 
 ### Not implemented yet
 
 - full webpage fetching / scraping / crawling
 - autonomous / model-driven tool use
 - deterministic post-processing beyond result assembly (formatting, export)
+- a hosted database for durable Vercel history (stateless by design)
 - live event streaming (SSE/WebSockets), authentication, HTTP/A2A transport,
   deployment tooling

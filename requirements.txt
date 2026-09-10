@@ -1,0 +1,11 @@
+# Production dependencies for the Vercel deployment (api/index.py).
+# Local development / tests use the pyproject.toml extras instead
+# (pip install -e ".[dev]").
+#
+# Optional, add only if you enable the matching mode via env vars:
+#   anthropic>=0.40   # MODEL_PROVIDER=anthropic  (real, billable Claude calls)
+#   ddgs>=6.0         # SEARCH_PROVIDER=duckduckgo (live web search)
+
+pydantic>=2.6
+pyyaml>=6.0
+fastapi>=0.110

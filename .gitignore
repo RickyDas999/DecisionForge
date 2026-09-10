@@ -26,6 +26,9 @@ data/
 *.db
 *.sqlite3
 
+# Vercel
+.vercel/
+
 # Editors / OS
 .idea/
 .vscode/

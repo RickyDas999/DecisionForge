@@ -131,7 +131,7 @@ def test_successful_research_run_is_persisted(tmp_path) -> None:
     rig = make_rig(tmp_path, _routing(AgentRoute.RESEARCH), research=[_research()])
     record = asyncio.run(
         rig.service.run(DispatchRequest(user_request="Research vector DBs."))
-    )
+    ).record
 
     assert record.status is RunStatus.COMPLETED
     assert record.route is AgentRoute.RESEARCH
@@ -162,7 +162,7 @@ def test_research_with_search_records_search_events(tmp_path) -> None:
     )
     record = asyncio.run(
         rig.service.run(DispatchRequest(user_request="Research vector DBs."))
-    )
+    ).record
 
     assert record.search_used is True
     assert _model_calls(rig) == 2
@@ -191,7 +191,7 @@ def test_comparison_with_search_records_search_events(tmp_path) -> None:
     )
     record = asyncio.run(
         rig.service.run(DispatchRequest(user_request="Compare A and B."))
-    )
+    ).record
     assert record.search_used is True
     assert record.selected_specialist == "ComparisonAgent"
     assert EventType.SEARCH_STARTED in _event_types(rig, record.run_id)
@@ -214,7 +214,7 @@ def test_brief_run_has_no_search_events(tmp_path) -> None:
                 user_request="Make a brief.", provided_context="source material"
             )
         )
-    )
+    ).record
 
     assert record.status is RunStatus.COMPLETED
     assert record.search_used is False
@@ -326,8 +326,8 @@ def test_two_runs_through_one_service_are_independent(tmp_path) -> None:
     repo = SQLiteRunRepository(tmp_path / "runs.db")
     service = DecisionForgeService(dispatcher, repo)
 
-    r1 = asyncio.run(service.run(DispatchRequest(user_request="Research X.")))
-    r2 = asyncio.run(service.run(DispatchRequest(user_request="Compare A and B.")))
+    r1 = asyncio.run(service.run(DispatchRequest(user_request="Research X."))).record
+    r2 = asyncio.run(service.run(DispatchRequest(user_request="Compare A and B."))).record
 
     assert r1.run_id != r2.run_id
     assert r1.route is AgentRoute.RESEARCH

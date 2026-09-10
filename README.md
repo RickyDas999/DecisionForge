@@ -31,7 +31,7 @@ User request
 > complexity, and is **not** planned for this version. See
 > `docs/architecture.md` -> "Architecture Reframe".
 
-## Status (Phase 8)
+## Status (Phase 9)
 
 Implemented:
 
@@ -63,12 +63,18 @@ Implemented:
   optional `search.*` → `specialist.*` → `run.completed` / `run.failed`) into a
   local `sqlite3` database. Deterministic file I/O — **zero** model calls; a
   failed run is stored and the original exception is re-raised unchanged.
-- **local web interface** — a small FastAPI app + plain HTML/CSS/JS browser UI:
-  submit a request (+ optional context), see the route, selected specialist,
-  whether search ran, the structured result rendered per route, the execution
-  trace, and recent runs. The web layer adds **zero** LLM calls. The default
-  server (`python scripts/web_demo.py`) is fully offline — canned
-  `DemoModelProvider` + mock search + local SQLite, no credentials.
+- **web interface** — a small FastAPI app + plain HTML/CSS/JS browser UI: submit
+  a request (+ optional context), see the route, selected specialist, whether
+  search ran, the structured result rendered per route, the execution trace, and
+  (in local mode) recent runs. The web layer adds **zero** LLM calls. `POST
+  /api/runs` returns the run *and* its trace in one response, so the UI renders
+  without a follow-up request.
+- **Vercel-deployable** — `api/index.py` + `app/web/deployment.py` run the same
+  app as a single serverless function. Import-safe (no network, no LLM call, no
+  SQLite file, no credentials in mock mode). Deployed runs are **stateless**
+  (`NullRunRepository`) — no hosted database; durable run history stays a local
+  feature. `GET /api/health` reports the safe config. See *Deploy to Vercel*
+  below.
 - demos: `scripts/web_demo.py`, `scripts/persistence_demo.py`,
   `scripts/tools_demo.py`, `scripts/skills_demo.py`, `scripts/dispatch_demo.py`;
   all zero-cost by default.
@@ -78,6 +84,7 @@ to call a tool; deterministic Python does, once, before the specialist.
 
 Not implemented yet:
 
+- a hosted database for durable Vercel history (stateless by design)
 - live event streaming (SSE/WebSockets) in the UI
 - authentication / accounts
 - HTTP/A2A transport
@@ -166,6 +173,47 @@ specialist, whether search ran, the structured result, the execution trace, and
 recent runs. To point the UI at real Claude, build `create_app` with a service
 whose provider comes from `create_model_provider(ModelConfig.from_env())` (real
 API calls, billable) — not wired into the default server.
+
+## Deploy to Vercel
+
+DecisionForge runs on Vercel as a single Python serverless function
+(`api/index.py`). No database, no second service.
+
+1. **Push this repo to GitHub.**
+2. **Import the repository into Vercel** (New Project → import). Vercel detects
+   Python from `api/index.py` and installs `requirements.txt`. If Project
+   Settings shows an old Python version, set it to **3.12**.
+3. **Set Environment Variables** (Project → Settings → Environment Variables):
+
+   *Offline demo* (no credentials, no cost):
+   ```
+   MODEL_PROVIDER=mock
+   PERSISTENCE_ENABLED=false
+   ```
+
+   *Real Claude demo* (**uses the Anthropic API — may incur API charges**; also
+   add `anthropic>=0.40` to `requirements.txt`):
+   ```
+   MODEL_PROVIDER=anthropic
+   ANTHROPIC_API_KEY=<your key>
+   ANTHROPIC_MODEL=<a model id, e.g. claude-haiku-4-5>
+   PERSISTENCE_ENABLED=false
+   ```
+4. **Deploy.**
+5. **Verify:** open `/` (the UI) and `GET /api/health` (should report
+   `{"status":"ok","model_provider":"mock|anthropic","persistence_enabled":false}`).
+
+Notes:
+
+- The Vercel deployment **does not use SQLite** — its filesystem is ephemeral, so
+  runs are stateless (`GET /api/runs` returns `[]`). Each `POST /api/runs`
+  response already contains the full result and event trace.
+- Local SQLite run history is still available in local mode
+  (`PERSISTENCE_ENABLED=true`).
+- Live web search stays off on Vercel unless you set `SEARCH_PROVIDER=duckduckgo`
+  and add `ddgs>=6.0` to `requirements.txt`.
+- A successful request is still **at most 2 LLM calls** (orchestrator + one
+  specialist) in every mode.
 
 Each script has an explicit `--live` mode that makes real, potentially billable
 Anthropic requests and requires `MODEL_PROVIDER=anthropic` plus credentials.

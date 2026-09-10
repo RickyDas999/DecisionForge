@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.persistence import EventType, ExecutionEvent, RunRecord, RunStatus
 from app.models.routing import AgentRoute
@@ -106,11 +106,25 @@ class RunSummary(BaseModel):
         )
 
 
-class RunDetail(BaseModel):
-    """A run plus its ordered event trace."""
+class RunResult(RunView):
+    """A run's fields **plus** its ordered event trace.
 
-    run: RunView
-    events: list[EventView]
+    Returned by ``POST /api/runs`` and ``GET /api/runs/{id}`` so the browser can
+    render a completed run — result and trace — from a single response, with no
+    follow-up request. This matters for stateless deployments.
+    """
+
+    events: list[EventView] = Field(default_factory=list)
+
+    @classmethod
+    def from_run(
+        cls, record: RunRecord, events: list[ExecutionEvent]
+    ) -> "RunResult":
+        base = RunView.from_record(record)
+        return cls(
+            **base.model_dump(),
+            events=[EventView.from_event(e) for e in events],
+        )
 
 
 class RecentRuns(BaseModel):
