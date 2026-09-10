@@ -1,11 +1,17 @@
 """Core Pydantic domain models for DecisionForge.
 
-Current architecture (post-reframe): ``routing`` holds the models used by the
-single-hop OrchestratorAgent. The ``analysis`` / ``brief`` / ``judging`` /
-``planning`` / ``research`` / ``state`` modules are **legacy** — they describe the
-earlier multi-stage pipeline that is no longer the target. They are kept only so
-existing tests keep passing; do not build new code on them. See
-``docs/architecture.md`` -> "Architecture Reframe".
+Current architecture (post-reframe):
+
+- ``routing`` — models for the single-hop OrchestratorAgent
+- ``specialists`` — input/output models for the three leaf specialist agents
+
+The ``analysis`` / ``brief`` / ``judging`` / ``planning`` / ``research`` /
+``state`` modules are **legacy** — they describe the earlier multi-stage pipeline
+that is no longer the target. They are kept only so existing tests keep passing;
+do not build new code on them. See ``docs/architecture.md`` -> "Architecture
+Reframe". (The legacy ``BriefInput`` in ``app.models.brief`` is intentionally not
+re-exported here; the current-architecture ``BriefInput`` below is from
+``app.models.specialists``.)
 """
 
 from app.models.analysis import (
@@ -17,7 +23,7 @@ from app.models.analysis import (
     RiskAnalysis,
     SecondaryAnalysisInput,
 )
-from app.models.brief import BriefInput, FinalBrief
+from app.models.brief import FinalBrief
 from app.models.events import EventType, WorkflowEvent
 from app.models.judging import JudgeInput, JudgeResult
 from app.models.planning import PlannerInput, ResearchPlan, ResearchTrack
@@ -28,23 +34,39 @@ from app.models.research import (
     Source,
 )
 from app.models.routing import AgentRoute, RoutingDecision, RoutingInput
+from app.models.specialists import (
+    BriefInput,
+    BriefResponse,
+    ComparisonInput,
+    ComparisonOption,
+    ComparisonResponse,
+    ResearchInput,
+    ResearchResponse,
+)
 from app.models.state import RunState, RunStatus
 
 __all__ = [
-    # Current architecture
+    # --- Current architecture: routing ---
     "AgentRoute",
     "RoutingDecision",
     "RoutingInput",
-    # Shared
+    # --- Current architecture: specialists ---
+    "BriefInput",
+    "BriefResponse",
+    "ComparisonInput",
+    "ComparisonOption",
+    "ComparisonResponse",
+    "ResearchInput",
+    "ResearchResponse",
+    # --- Shared ---
     "EventType",
     "RunState",
     "RunStatus",
     "WorkflowEvent",
-    # Legacy (pre-reframe multi-stage pipeline; see docs/architecture.md)
+    # --- Legacy (pre-reframe multi-stage pipeline; see docs/architecture.md) ---
     "AlternativesAnalysis",
     "AnalysisInput",
     "AnalysisMode",
-    "BriefInput",
     "DecisionAnalysis",
     "FinalBrief",
     "JudgeInput",

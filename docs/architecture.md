@@ -54,15 +54,28 @@ handling. No other agent is invoked automatically.
 ## 3. The delegation graph
 
 ```
-                  OrchestratorAgent
-                 /       |        \
-                /        |         \
-        ResearchAgent  ComparisonAgent  BriefAgent
+                         Orchestrator
+                        /     |      \
+                       /      |       \
+                Research  Comparison  Brief
+                   |         |          |
+                   +---------+----------+
+                             |
+                   deterministic Python
+                             |
+                           result
 ```
 
 There are no edges between the specialists. The orchestrator is the only node
-allowed to choose an outgoing edge, and it chooses exactly one. This models
-controlled parent/sub-agent routing without an open-ended agent graph.
+allowed to choose an outgoing edge, and it chooses exactly one. Each specialist
+is a **leaf agent**: it makes one model call and returns a structured result;
+it cannot delegate. Everything below the specialists is deterministic Python.
+This models controlled parent/sub-agent routing without an open-ended agent
+graph.
+
+The deterministic **dispatcher** that turns a `RoutingDecision` into exactly one
+specialist call is **not implemented yet** (next phase). Semantic routing,
+specialist behavior, and deterministic dispatch are built and tested separately.
 
 ## 4. The four agents
 
@@ -78,27 +91,49 @@ controlled parent/sub-agent routing without an open-ended agent graph.
 - `OrchestratorAgent.run()` never contains `if route == ...: call specialist`.
   That deterministic dispatch layer is a later phase.
 
-### ResearchAgent (not implemented)
+The three specialists are all **implemented** as leaf agents. Each takes only a
+`ModelProvider` in its constructor, makes exactly one
+`generate_structured(...)` call in `run()`, does no network I/O, uses no tools,
+and never invokes another agent, retries, or loops. Real search/fetch tools are
+a later phase.
+
+### ResearchAgent (implemented)
+
+`app/agents/research.py`. `BaseAgent[ResearchInput, ResearchResponse]`,
+`name = "research"`.
 
 For requests that primarily ask to investigate, gather facts, explain via
-research, find current information, or summarize a topic from external
-information. May later use free search/fetch **tools** (still one LLM call).
+research, find current information, or summarize a topic. It has **no live data
+source yet**: its prompt forbids claiming to have performed web/live research or
+fabricating citations when no evidence is supplied in
+`ResearchInput.provided_context`, and requires it to record that gap in
+`limitations`. When deterministic tool code later produces evidence text, it will
+be passed in through `provided_context` — one specialist call, no new agent.
 
-### ComparisonAgent (not implemented)
+### ComparisonAgent (implemented)
 
-For requests that ask to compare two or more options, evaluate tradeoffs, choose
-between alternatives, or recommend one. Produces a structured comparison.
+`app/agents/comparison.py`. `BaseAgent[ComparisonInput, ComparisonResponse]`,
+`name = "comparison"`.
 
-### BriefAgent (not implemented)
+For requests to compare two or more options, evaluate tradeoffs, choose between
+alternatives, or recommend one. Produces a structured comparison (options with
+advantages/disadvantages, tradeoffs, recommendation, rationale, `confidence`
+0.0–1.0, limitations). If current external evidence would be needed and none was
+supplied, it says so in `limitations`.
+
+### BriefAgent (implemented)
+
+`app/agents/brief.py`. `BaseAgent[BriefInput, BriefResponse]`, `name = "brief"`.
 
 For requests where the user already supplies context/material and wants it turned
-into an executive brief, decision memo, or polished summary. It works only from
-the supplied context; if there is not enough material, it says so in its
-structured result. It never calls `ResearchAgent` or any other agent first.
+into an executive brief, decision memo, or polished summary. `BriefInput`
+**requires** `provided_context` (non-blank) — the agent transforms supplied
+material, it does not gather it. Its prompt forbids introducing unsupported
+facts, performing research, or calling another agent.
 
-## 5. Routing models
+## 5. Models
 
-`app/models/routing.py`:
+### Routing models — `app/models/routing.py`
 
 - **`AgentRoute`** — a `str` enum with **exactly** `RESEARCH`, `COMPARISON`,
   `BRIEF`. There is no `unknown` route; the orchestrator commits to the dominant
@@ -112,6 +147,27 @@ structured result. It never calls `ResearchAgent` or any other agent first.
 Route validity is enforced by Pydantic: a model response with a route outside the
 enum fails through the provider's existing `StructuredOutputError` path. There is
 no fuzzy matching and no silent remapping of invalid names.
+
+### Specialist models — `app/models/specialists.py`
+
+New, current-architecture models — they deliberately do **not** reuse the legacy
+pipeline result models.
+
+- **`ResearchInput`** — `{ user_request (non-blank), provided_context: str | None }`.
+- **`ResearchResponse`** — `{ topic, summary, key_findings[], limitations[],
+  sources[] }`. `sources` is empty until real tools exist.
+- **`ComparisonInput`** — `{ user_request (non-blank), provided_context: str | None }`.
+- **`ComparisonOption`** — `{ name, advantages[], disadvantages[] }`.
+- **`ComparisonResponse`** — `{ question, options[], recommendation, rationale,
+  important_tradeoffs[], confidence (0.0–1.0), limitations[] }`.
+- **`BriefInput`** — `{ user_request (non-blank), provided_context (non-blank,
+  required) }`.
+- **`BriefResponse`** — `{ title, executive_summary, key_points[],
+  recommendation: str | None, action_items[] }`.
+
+`provided_context` on research/comparison exists so future deterministic tool
+code can inject evidence text and then call exactly one specialist — it adds no
+agent.
 
 ## 6. Routing semantics
 
@@ -240,13 +296,20 @@ existing Phase 0/1 tests keep passing:
 `Source`), `app/models/judging.py` (`JudgeInput`, `JudgeResult`),
 `app/models/analysis.py` (`AnalysisMode`, `AnalysisInput`, `OptionAssessment`,
 `DecisionAnalysis`, `SecondaryAnalysisInput`, `RiskAnalysis`,
-`AlternativesAnalysis`), `app/models/brief.py` (`BriefInput`, `FinalBrief`), and
-the multi-stage members of `RunStatus` / `app/orchestration/transitions.py`.
+`AlternativesAnalysis`), `app/models/brief.py` (legacy `BriefInput`,
+`FinalBrief`), and the multi-stage members of `RunStatus` /
+`app/orchestration/transitions.py`.
+
+The legacy `BriefInput` in `app/models/brief.py` is no longer re-exported from
+`app/models/__init__.py` (small, safe cleanup — it had no importers outside its
+own module); `app.models.BriefInput` now resolves to the current-architecture
+model in `app/models/specialists.py`. The legacy class is still importable
+directly as `app.models.brief.BriefInput` so the Phase 0 tests are undisturbed.
 
 **Rules for legacy code:** do not build new functionality on it; do not treat its
 presence as evidence the old design is planned. A dedicated, controlled cleanup
-phase will remove it. New specialist agents (`research`, `comparison`, `brief`)
-will get their own fresh, minimal models.
+phase will remove it. The specialist agents (`research`, `comparison`, `brief`)
+use their own fresh, minimal models in `app/models/specialists.py`.
 
 ### What the project still demonstrates
 
@@ -272,11 +335,18 @@ abstractions).
 - **Phase 2** — routing foundation: `AgentRoute` / `RoutingInput` /
   `RoutingDecision`, `OrchestratorAgent` + system prompt, orchestrator tests,
   `scripts/orchestrator_demo.py`, this reframed document.
+- **Phase 3** — the three leaf specialists: `app/models/specialists.py`
+  (`ResearchInput`/`ResearchResponse`, `ComparisonInput`/`ComparisonOption`/
+  `ComparisonResponse`, `BriefInput`/`BriefResponse`), `ResearchAgent`,
+  `ComparisonAgent`, `BriefAgent` (each one `ModelProvider` call, no tools, no
+  delegation), their mock tests, `tests/models/test_specialist_models.py`, and
+  `scripts/specialists_demo.py`.
 
 ### Not implemented yet
 
-- `ResearchAgent`, `ComparisonAgent`, `BriefAgent`
-- the deterministic dispatch layer that turns a `RoutingDecision` into exactly
-  one specialist call
+- the deterministic **dispatcher** that turns a `RoutingDecision` into exactly
+  one specialist call (routing, specialist behavior, and dispatch are built
+  separately on purpose)
+- real search/fetch tools feeding `provided_context`
 - deterministic post-processing (formatting, validation, storage)
-- persistence, events wiring, HTTP transport, UI
+- Agent Skills runtime, persistence, events wiring, HTTP/A2A transport, UI

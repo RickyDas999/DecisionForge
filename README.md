@@ -31,7 +31,7 @@ User request
 > complexity, and is **not** planned for this version. See
 > `docs/architecture.md` -> "Architecture Reframe".
 
-## Status (Phase 2)
+## Status (Phase 3)
 
 Implemented:
 
@@ -39,12 +39,18 @@ Implemented:
   factory)
 - the routing schema (`AgentRoute`, `RoutingInput`, `RoutingDecision`)
 - `OrchestratorAgent` (single structured model call -> `RoutingDecision`)
+- the three **leaf** specialist agents — `ResearchAgent`, `ComparisonAgent`,
+  `BriefAgent` — each one structured model call, no tools, no delegation
+- current-architecture structured result models (`app/models/specialists.py`)
+- zero-cost mock demos for the orchestrator and the specialists
 
 Not implemented yet:
 
-- the three specialist agents (`ResearchAgent`, `ComparisonAgent`, `BriefAgent`)
-- the deterministic dispatch that invokes the selected specialist
-- deterministic post-processing, persistence, events, UI
+- the deterministic dispatch that turns a routing decision into one specialist
+  call (built separately next phase)
+- live web search / fetch tools
+- Agent Skills runtime
+- database, UI, HTTP/A2A transport
 
 ## Model provider & cost
 
@@ -84,10 +90,13 @@ tests).
 
 ```bash
 python scripts/orchestrator_demo.py     # routes 3 sample requests via MockModelProvider
+python scripts/specialists_demo.py      # runs all 3 leaf specialists via MockModelProvider
 python scripts/model_smoke_test.py      # exercises both provider methods via MockModelProvider
 ```
 
 Each script has an explicit `--live` mode that makes real, potentially billable
 Anthropic requests and requires `MODEL_PROVIDER=anthropic` plus credentials.
-`orchestrator_demo.py --live "<request>"` makes exactly one call. Do not run
-`--live` unless you intend to spend API credit.
+`orchestrator_demo.py --live "<request>"` makes exactly one call;
+`specialists_demo.py --live --agent <name> "<request>"` makes exactly one call
+(and `--agent brief` also needs `--context "..."`). Do not run `--live` unless
+you intend to spend API credit.
