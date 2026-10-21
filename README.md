@@ -207,7 +207,7 @@ search failure stops the request with no retry and no fallback.
 | LLM calls per successful request | **2** (1 routing + 1 specialist) |
 | Default model | `claude-haiku-5-5` ($0.10 / $0.50 per million tokens in / out) |
 | Effort / thinking | `low` / disabled, so no hidden thinking tokens are billed |
-| Output cap per call | 800 tokens; the JSON schema is sent minified |
+| Output cap per call | 1200 tokens; minified JSON requested, schema sent minified |
 | Per-run budget | **$0.002** and 3 calls (`RUN_BUDGET_USD`, `RUN_MAX_LLM_CALLS`) |
 | Lifetime spend cap | **$0.03** across all runs (`SPEND_LIMIT_USD`, kept in `data/spend.json`) |
 | Typical run | about **$0.0003** (shown in the UI and the trace) |

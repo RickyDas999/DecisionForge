@@ -21,7 +21,9 @@ from app.providers.usage import DEFAULT_LIFETIME_LIMIT_USD, DEFAULT_MODEL, RunBu
 
 #: Default output-token ceiling for a single generation. Output tokens are the
 #: expensive half of a call, and this cap bounds every call's worst-case cost.
-DEFAULT_MAX_TOKENS = 800
+#: 1200 leaves headroom for a full decision model (800 truncated one live) while
+#: a three-call run still fits the default $0.002 budget.
+DEFAULT_MAX_TOKENS = 1200
 
 #: Default reasoning effort sent to models that accept it.
 DEFAULT_EFFORT = "low"
