@@ -88,6 +88,11 @@ def _limitations(model: DecisionModel, report: DecisionReport) -> list[str]:
             f"{report.samples} independent estimates were combined; they differed by "
             f"{report.disagreement * 10:.1f} points on average, which widened the ranges."
         )
+    if report.invalid_citations:
+        notes.append(
+            f"{report.invalid_citations} score citation(s) named a search result that was "
+            "never shown and were removed."
+        )
     if report.gaps:
         notes.append(f"Not scored (treated as fully uncertain): {', '.join(report.gaps)}.")
     return notes

@@ -69,3 +69,20 @@ def test_failed_second_sample_keeps_the_first_answer() -> None:
     response = _run(_FailsSecondTime(structured_responses=[CLOSE]))
     assert response.decision_report.samples == 1
     assert response.recommendation
+
+
+def test_citations_to_unseen_results_are_removed_and_reported() -> None:
+    from app.models.search import SearchResult
+
+    cited = CLEAR.model_copy(update={"scores": [
+        s.model_copy(update={"source": 1 if s.option == "A" else 4}) for s in CLEAR.scores
+    ]})
+    provider = MockModelProvider(structured_responses=[cited])
+    agent = ComparisonAgent(provider, decision_engine=True, adaptive_samples=True)
+    evidence = [SearchResult(title="t", url="https://e.com", snippet="s")]
+    response = asyncio.run(agent.run(
+        ComparisonInput(user_request="A or B?", evidence=evidence), AgentRuntimeContext(run_id="t")))
+    report = response.decision_report
+    assert report.invalid_citations == 1
+    assert report.cited_scores == 1
+    assert any("never shown" in note for note in response.limitations)

@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
+from app.models.decision import DecisionModel
 from app.models.grounding import CheckedFinding, Finding, FindingStatus, GroundingReport
 from app.models.search import SearchResult
 
@@ -71,3 +72,20 @@ def verify_findings(
         groundedness=count[FindingStatus.VERIFIED] / len(checked) if checked else 0.0,
         citation_precision=count[FindingStatus.VERIFIED] / cited if cited else None,
     )
+
+
+def drop_invalid_sources(model: DecisionModel, evidence_count: int) -> tuple[DecisionModel, int]:
+    """Clear score citations that point past the results the model was shown.
+
+    Decision-model notes are too short to quote-check, but a citation to a
+    result that does not exist is certainly wrong. Returns the cleaned model
+    and how many citations were removed.
+    """
+    removed = 0
+    scores = []
+    for score in model.scores:
+        if score.source is not None and score.source > evidence_count:
+            score = score.model_copy(update={"source": None})
+            removed += 1
+        scores.append(score)
+    return model.model_copy(update={"scores": scores}), removed

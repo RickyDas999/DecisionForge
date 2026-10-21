@@ -64,3 +64,17 @@ def test_report_rates() -> None:
 def test_no_citations_means_no_precision() -> None:
     report = verify_findings([Finding(claim="d")], EVIDENCE)
     assert report.citation_precision is None and report.groundedness == 0.0
+
+
+def test_drop_invalid_sources_clears_only_out_of_range_citations() -> None:
+    from app.grounding import drop_invalid_sources
+    from app.models.decision import Criterion, DecisionModel, Score
+
+    model = DecisionModel(
+        question="q", options=["A", "B"], criteria=[Criterion(name="c", weight=1.0)],
+        scores=[Score(option="A", criterion="c", low=1, high=2, source=2),
+                Score(option="B", criterion="c", low=1, high=2, source=3)],
+    )
+    cleaned, removed = drop_invalid_sources(model, evidence_count=2)
+    assert removed == 1
+    assert [s.source for s in cleaned.scores] == [2, None]
