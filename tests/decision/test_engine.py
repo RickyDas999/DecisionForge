@@ -113,3 +113,15 @@ def test_agent_decision_mode_makes_one_call_for_a_decision_model() -> None:
     assert provider.calls[0].response_model is DecisionModel
     assert "Do not write" in provider.calls[0].system_prompt
     assert response.decision_report is not None
+
+
+def test_single_sample_report_defaults() -> None:
+    report = analyze(_model())
+    assert report.samples == 1 and report.disagreement is None
+
+
+def test_summary_mentions_merged_samples() -> None:
+    model = _model()
+    report = analyze(model).model_copy(update={"samples": 2, "disagreement": 0.15})
+    limitations = to_comparison_response(model, report).limitations
+    assert any("2 independent estimates" in n and "1.5 points" in n for n in limitations)

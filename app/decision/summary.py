@@ -83,6 +83,11 @@ def _limitations(model: DecisionModel, report: DecisionReport) -> list[str]:
     notes.append("Scores are model estimates on a 0-10 scale; ranges show its uncertainty.")
     if report.total_scores and report.cited_scores == 0:
         notes.append("No score cites search evidence; all come from general knowledge.")
+    if report.samples > 1 and report.disagreement is not None:
+        notes.append(
+            f"{report.samples} independent estimates were combined; they differed by "
+            f"{report.disagreement * 10:.1f} points on average, which widened the ranges."
+        )
     if report.gaps:
         notes.append(f"Not scored (treated as fully uncertain): {', '.join(report.gaps)}.")
     return notes

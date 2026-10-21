@@ -169,8 +169,9 @@ function renderDecision(model, report) {
   report.ranking.forEach((o) =>
     wins.appendChild(barRow(o.option, o.win_probability, `${pct(o.win_probability)} · ${o.expected_score.toFixed(1)}/10`))
   );
+  const samples = report.samples > 1 ? `, ${report.samples} merged estimates` : "";
   const winBlock = block(
-    `Win probability: ${VERDICT_LABEL[report.verdict]} (${report.simulations.toLocaleString()} simulations)`,
+    `Win probability: ${VERDICT_LABEL[report.verdict]} (${report.simulations.toLocaleString()} simulations${samples})`,
     wins
   );
   f.appendChild(winBlock);
