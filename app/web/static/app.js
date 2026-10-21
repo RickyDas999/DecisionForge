@@ -17,7 +17,7 @@ let CONFIG = {
   search_provider: "none",
   search_enabled: false,
   persistence_enabled: false,
-  max_llm_calls: 2,
+  max_llm_calls: 3,
 };
 
 const SEARCH_ELIGIBLE_ROUTES = new Set(["research", "comparison"]);
@@ -169,8 +169,9 @@ function renderDecision(model, report) {
   report.ranking.forEach((o) =>
     wins.appendChild(barRow(o.option, o.win_probability, `${pct(o.win_probability)} · ${o.expected_score.toFixed(1)}/10`))
   );
+  const samples = report.samples > 1 ? `, ${report.samples} merged estimates` : "";
   const winBlock = block(
-    `Win probability: ${VERDICT_LABEL[report.verdict]} (${report.simulations.toLocaleString()} simulations)`,
+    `Win probability: ${VERDICT_LABEL[report.verdict]} (${report.simulations.toLocaleString()} simulations${samples})`,
     wins
   );
   f.appendChild(winBlock);
@@ -356,7 +357,7 @@ function renderTech(run) {
   const cost = $("tech-cost");
   cost.replaceChildren();
   dlRow(cost, "LLM calls used", run.llm_calls);
-  dlRow(cost, "max allowed", `${run.llm_calls_max}  (1 routing + 1 specialist)`);
+  dlRow(cost, "max allowed", `${run.llm_calls_max}  (1 routing + 1 specialist + 1 second estimate on close calls)`);
   dlRow(cost, "retries", "0");
   dlRow(cost, "fallback agents", "0");
   dlRow(cost, "parallel LLM calls", "0");
@@ -490,7 +491,7 @@ async function init() {
   $("demo-note").textContent =
     CONFIG.model_provider === "mock"
       ? "This server runs offline (deterministic demo provider). Routing, the search tool, skill selection, persistence and the event trace are all real — only the model outputs are canned."
-      : `Model provider: ${CONFIG.model_provider}. Each request makes at most 2 real LLM calls.`;
+      : `Model provider: ${CONFIG.model_provider}. Each request makes at most ${CONFIG.max_llm_calls} real LLM calls.`;
   await loadRecent();
 }
 

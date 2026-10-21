@@ -23,6 +23,7 @@ def to_dict(run: EvalRun) -> dict[str, Any]:
         "started_at": run.started_at.isoformat(),
         "metrics": run.metric_summary(),
         "totals": run.totals(),
+        "calibration": run.calibration(),
         "cases": [
             {
                 "id": r.case.id,
@@ -76,6 +77,8 @@ def to_markdown(run: EvalRun, baseline: dict[str, Any] | None = None) -> str:
             row += f" {_delta(summary['mean'], prev)} |"
         lines.append(row)
 
+    lines += _calibration_lines(data["calibration"], baseline)
+
     lines += ["", "## Cases", ""]
     names = run.metric_names
     lines.append("| case | route | " + " | ".join(names) + " | cost if live |")
@@ -92,6 +95,27 @@ def to_markdown(run: EvalRun, baseline: dict[str, Any] | None = None) -> str:
         lines += ["", "## Errors", ""]
         lines += [f"- `{c['id']}`: {c['error']}" for c in errors]
     return "\n".join(lines) + "\n"
+
+
+def _calibration_lines(cal: dict[str, Any], baseline: dict[str, Any] | None) -> list[str]:
+    lines = ["", "## Calibration", ""]
+    if not cal["n"]:
+        return lines + ["No comparison case with a clear-cut answer produced a decision report."]
+    prev = (baseline or {}).get("calibration") or {}
+    deltas = ""
+    if baseline and prev.get("brier") is not None:
+        deltas = (f" (Δ Brier {_delta(cal['brier'], prev.get('brier'))}, "
+                  f"Δ ECE {_delta(cal['ece'], prev.get('ece'))}; lower is better)")
+    lines.append(
+        f"{cal['n']} clear-cut comparisons · Brier {_fmt(cal['brier'])} · "
+        f"ECE {_fmt(cal['ece'])}{deltas}"
+    )
+    lines += ["", "| confidence | n | mean confidence | accuracy |", "|---|---|---|---|"]
+    lines += [
+        f"| {b['range']} | {b['n']} | {_fmt(b['mean_confidence'])} | {_fmt(b['accuracy'])} |"
+        for b in cal["bins"]
+    ]
+    return lines
 
 
 def save_report(

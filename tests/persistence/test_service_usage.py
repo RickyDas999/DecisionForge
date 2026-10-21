@@ -50,3 +50,17 @@ def test_call_limit_fails_the_run_cleanly() -> None:
     )
     with pytest.raises(BudgetExceededError):
         asyncio.run(service.run(DispatchRequest(user_request="Explain observability")))
+
+
+def test_close_comparison_uses_the_third_call_and_counts_it() -> None:
+    dispatcher = create_dispatcher(
+        DemoModelProvider(), search_provider=DemoSearchProvider(),
+        decision_engine=True, adaptive_samples=True,
+    )
+    service = DecisionForgeService(dispatcher, NullRunRepository())
+    # The demo's illustrative scores make this pair a close call.
+    outcome = asyncio.run(service.run(DispatchRequest(user_request="Should we host this on AWS or GCP?")))
+    assert outcome.usage.calls == 3
+    view = RunResult.from_run(outcome.record, outcome.events)
+    assert view.llm_calls == 3 and view.llm_calls_max == 3
+    assert view.result["decision_report"]["samples"] == 2

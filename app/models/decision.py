@@ -99,3 +99,7 @@ class DecisionReport(BaseModel):
     #: How many scores cite a search result.
     cited_scores: int = 0
     total_scores: int = 0
+    #: Independent extractions merged into the analysed model.
+    samples: int = Field(default=1, ge=1)
+    #: Mean midpoint gap between samples on a 0-1 scale (``None`` for one sample).
+    disagreement: float | None = None

@@ -20,6 +20,7 @@ import re
 
 from pydantic import BaseModel
 
+from app.agents.comparison import SECOND_OPINION_NOTE
 from app.models.decision import Criterion, DecisionModel, Score
 
 from app.models.routing import AgentRoute, RoutingDecision
@@ -111,10 +112,12 @@ def _demo_decision(user_prompt: str) -> DecisionModel:
     request = user_prompt.split("\n\n", 1)[0].removeprefix("Comparison request:").strip()
     options = _demo_options(request)
     has_evidence = "Result 1" in user_prompt
+    # A second-opinion request gets its own (different) illustrative scores.
+    salt = "second|" if user_prompt.endswith(SECOND_OPINION_NOTE) else ""
     scores = []
     for option in options:
         for index, (criterion, _) in enumerate(_DEMO_CRITERIA):
-            digest = hashlib.sha256(f"{option}|{criterion}".lower().encode()).digest()
+            digest = hashlib.sha256(f"{salt}{option}|{criterion}".lower().encode()).digest()
             mid = 3.0 + digest[0] / 255 * 6.0  # 3..9
             half = 0.5 + digest[1] / 255 * 1.5  # 0.5..2
             scores.append(Score(

@@ -15,7 +15,7 @@ Modes:
 * ``MODEL_PROVIDER=anthropic`` — the real :class:`AnthropicModelProvider`
   (requires ``ANTHROPIC_API_KEY``; ``ANTHROPIC_MODEL`` defaults to
   ``claude-haiku-5-5``; real, billable calls capped by ``RUN_BUDGET_USD``).
-  Still exactly two LLM calls per successful request.
+  At most three LLM calls per request (the third only for a close comparison).
 * ``REPLAY_MODE=replay`` — recorded real model output from ``REPLAY_CASSETTE``;
   no key and no cost (any prompt not in the cassette fails the run).
 
@@ -55,6 +55,8 @@ _TRUE = {"1", "true", "yes", "on"}
 PERSISTENCE_ENV_VAR = "PERSISTENCE_ENABLED"
 #: ``false`` restores the free-text comparison specialist.
 DECISION_ENGINE_ENV_VAR = "DECISION_ENGINE"
+#: ``false`` disables the second estimate on close comparisons.
+ADAPTIVE_SAMPLES_ENV_VAR = "ADAPTIVE_SAMPLES"
 
 
 def _env_bool(name: str, *, default: bool) -> bool:
@@ -135,6 +137,7 @@ def create_deployment_app() -> FastAPI:
         skill_registry=_skill_registry(),
         search_provider=search_provider,
         decision_engine=_env_bool(DECISION_ENGINE_ENV_VAR, default=True),
+        adaptive_samples=_env_bool(ADAPTIVE_SAMPLES_ENV_VAR, default=True),
     )
     service = DecisionForgeService(
         dispatcher, repository, run_budget=model_config.run_budget

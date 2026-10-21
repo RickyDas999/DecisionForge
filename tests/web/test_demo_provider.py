@@ -79,3 +79,17 @@ def test_demo_app_end_to_end_is_offline(tmp_path) -> None:
     report = result["decision_report"]
     assert report["winner"] in {"PostgreSQL", "MongoDB"}
     assert result["confidence"] == report["win_probability"]
+
+
+def test_demo_second_opinion_differs_from_first() -> None:
+    from app.agents.comparison import SECOND_OPINION_NOTE
+    from app.models.decision import DecisionModel
+
+    prompt = "Comparison request:\nAWS or GCP?\n\nSupplied context: none."
+    provider = DemoModelProvider()
+    first = asyncio.run(provider.generate_structured(
+        system_prompt="s", user_prompt=prompt, response_model=DecisionModel))
+    second = asyncio.run(provider.generate_structured(
+        system_prompt="s", user_prompt=prompt + SECOND_OPINION_NOTE, response_model=DecisionModel))
+    assert first.options == second.options == ["AWS", "GCP"]
+    assert first.scores != second.scores

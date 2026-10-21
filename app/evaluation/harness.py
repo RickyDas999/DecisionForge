@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from app.evaluation.calibration import CalibrationPoint, summarize
 from app.evaluation.golden import GoldenCase
 from app.evaluation.metrics import METRICS, Metric, PipelineOutcome
 from app.models.dispatch import DispatchRequest
@@ -67,6 +68,24 @@ class EvalRun:
                 "n": len(values),
             }
         return summary
+
+    def calibration_points(self) -> list[CalibrationPoint]:
+        """Confidence vs. correctness for cases with a clear-cut right answer."""
+        points = []
+        for r in self.results:
+            correct = r.scores.get("recommendation_match")
+            report = (r.outcome.result or {}).get("decision_report")
+            if correct is None or not report:
+                continue
+            points.append(CalibrationPoint(
+                case_id=r.case.id,
+                confidence=float(report["win_probability"]),
+                correct=correct == 1.0,
+            ))
+        return points
+
+    def calibration(self) -> dict[str, Any]:
+        return summarize(self.calibration_points())
 
     def totals(self) -> dict[str, Any]:
         outs = [r.outcome for r in self.results]
@@ -139,12 +158,17 @@ async def run_eval(
     run_budget: RunBudget | None = None,
     metrics: Sequence[Metric] = METRICS,
     decision_engine: bool = True,
+    adaptive_samples: bool = True,
 ) -> EvalRun:
     """Run ``cases`` sequentially (no parallel model calls) and score each."""
     repo = _CapturingRepository()
     service = DecisionForgeService(
         create_dispatcher(
-            provider, skill_registry, search_provider, decision_engine=decision_engine
+            provider,
+            skill_registry,
+            search_provider,
+            decision_engine=decision_engine,
+            adaptive_samples=adaptive_samples,
         ),
         repo,
         run_budget=run_budget,

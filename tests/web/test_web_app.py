@@ -159,7 +159,7 @@ def test_research_run_succeeds_and_is_persisted(tmp_path) -> None:
     # demo metadata for the frontend (deterministic — no model call)
     assert body["selected_skill"] == "research"
     assert body["llm_calls"] == 2
-    assert body["llm_calls_max"] == 2
+    assert body["llm_calls_max"] == 3
     assert body["routing_reasoning"]
 
     # persisted
@@ -341,7 +341,7 @@ def test_index_page_has_demo_scaffolding(tmp_path) -> None:
         "Brief Agent",
         'data-example="comparison"',
         "Technical details",
-        "at most two LLM calls",
+        "at most three LLM calls",
     ):
         assert needle in html
 
@@ -350,7 +350,7 @@ def test_health_reports_safe_config_only(tmp_path) -> None:
     rig = make_rig(tmp_path, _routing(AgentRoute.RESEARCH), research=[_research()])
     health = rig.client.get("/api/health").json()
     assert health["status"] == "ok"
-    assert health["max_llm_calls"] == 2
+    assert health["max_llm_calls"] == 3
     assert health["persistence_enabled"] is True  # SQLite repo in this rig
     assert health["search_provider"] == "none"  # make_rig default has no search
     assert health["search_enabled"] is False
