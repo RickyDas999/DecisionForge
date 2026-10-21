@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from app.agents.comparison import SECOND_OPINION_NOTE
 from app.models.decision import Criterion, DecisionModel, Score
+from app.models.grounding import Finding, GroundedResearch
 
 from app.models.routing import AgentRoute, RoutingDecision
 from app.models.search import SearchResponse, SearchResult
@@ -137,6 +138,39 @@ def _demo_decision(user_prompt: str) -> DecisionModel:
     )
 
 
+_RESULT_RE = re.compile(
+    r"^Result (\d+)\nTitle: (.*)\n(?:Source: .*\n)?URL: .*\nSnippet: (.*)$", re.MULTILINE
+)
+
+
+def _demo_research(user_prompt: str) -> GroundedResearch:
+    """Findings that quote the rendered evidence, plus one bad citation."""
+    request = user_prompt.split("\n\n", 1)[0].removeprefix("Research request:").strip()
+    results = _RESULT_RE.findall(user_prompt)
+    findings = [
+        Finding(
+            claim=f"Result {n} ({title.strip()}) is relevant to the request.",
+            source=int(n),
+            quote=" ".join(snippet.split()[:8]),
+        )
+        for n, title, snippet in results[:3]
+    ]
+    findings.append(Finding(claim="Demo: a general-knowledge finding with no citation."))
+    if results:
+        findings.append(Finding(
+            claim="Demo: a deliberately unsupported citation the verifier should reject.",
+            source=1,
+            quote="this sentence does not appear in any result",
+        ))
+    return GroundedResearch(
+        topic=request or "Demo research topic",
+        summary="Offline demo: findings quote the canned search results so the "
+        "citation verifier can be seen working. Not real research.",
+        findings=findings,
+        open_questions=["Configure MODEL_PROVIDER=anthropic for real answers."],
+    )
+
+
 class DemoModelProvider(ModelProvider):
     """Offline canned-response provider for the local web demo."""
 
@@ -168,6 +202,9 @@ class DemoModelProvider(ModelProvider):
 
         if response_model is DecisionModel:
             return _demo_decision(user_prompt)
+
+        if response_model is GroundedResearch:
+            return _demo_research(user_prompt)
 
         if response_model is ResearchResponse:
             return ResearchResponse(
