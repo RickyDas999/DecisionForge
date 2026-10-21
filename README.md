@@ -237,6 +237,37 @@ Recommended primary scenario: **Comparison** — it exercises routing, specialis
 selection, the search tool, an Agent Skill, structured output, a recommendation
 with confidence, and the two-call ceiling in one request.
 
+## Evaluation
+
+`evals/golden_set.json` holds 30 hand-written cases (12 comparison, 10 research,
+8 brief), including deliberately ambiguous wording ("Help me decide between…",
+"Summarize what zero-trust means…"). `scripts/run_eval.py` runs every case end to
+end through the real pipeline and scores it with deterministic metrics, with no
+LLM judge:
+
+| metric | measures |
+|---|---|
+| `route_accuracy` | routed to the expected specialist |
+| `contract_pass` | result validates and meets its route's semantic minimums |
+| `option_recall` | the expected options are actually compared |
+| `recommendation_match` | the recommendation is acceptable (only where one is clear-cut) |
+| `rubric_coverage` | rubric terms a complete answer should mention |
+
+Each report (`evals/reports/<label>.md` + `.json`) includes the cost per case,
+call counts, and p50 latency. `--baseline` adds a delta column for regression
+tracking.
+
+```bash
+python scripts/run_eval.py                          # offline demo provider, $0
+python scripts/run_eval.py --provider replay        # recorded real answers, $0
+python scripts/run_eval.py --provider live --limit 5          # prints worst case and stops
+python scripts/run_eval.py --provider live --limit 5 --yes-spend   # billable, recorded
+```
+
+The committed `evals/reports/demo.md` is the offline baseline. The demo provider
+returns canned answers, so its quality scores are near zero by design. It
+validates the harness, and its two misroutes show where a keyword router fails.
+
 ## Testing
 
 ```bash
