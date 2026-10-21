@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from collections.abc import Mapping, Sequence
+
 from pydantic import BaseModel, Field
 
 from app.models.routing import AgentRoute
@@ -41,3 +43,30 @@ def load_golden_set(path: str | Path = DEFAULT_GOLDEN_PATH) -> list[GoldenCase]:
     if len(ids) != len(set(ids)):
         raise ValueError(f"duplicate case ids in {path}")
     return cases
+
+
+#: The default small live sample: every route, 10-12 model calls in total, a
+#: fraction of a cent on the default model.
+DEFAULT_PICK: dict[AgentRoute, int] = {
+    AgentRoute.COMPARISON: 2,
+    AgentRoute.RESEARCH: 2,
+    AgentRoute.BRIEF: 1,
+}
+
+
+def pick_balanced(
+    cases: Sequence[GoldenCase], per_route: Mapping[AgentRoute, int] = DEFAULT_PICK
+) -> list[GoldenCase]:
+    """A small, deterministic sample covering each route.
+
+    Takes the first ``per_route[route]`` cases of each route in file order.
+    Comparisons with a clear-cut answer come first, so the sample also feeds
+    recommendation accuracy and calibration.
+    """
+    picked: list[GoldenCase] = []
+    for route, count in per_route.items():
+        of_route = [c for c in cases if c.expected_route is route]
+        if route is AgentRoute.COMPARISON:
+            of_route.sort(key=lambda c: not c.acceptable_recommendations)  # stable
+        picked.extend(of_route[:count])
+    return picked
