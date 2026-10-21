@@ -66,6 +66,7 @@ def verify_findings(
     return GroundingReport(
         findings=checked,
         evidence_count=len(evidence),
+        evidence_urls=[r.url for r in evidence],
         verified=count[FindingStatus.VERIFIED],
         unsupported=count[FindingStatus.UNSUPPORTED],
         model_knowledge=count[FindingStatus.MODEL_KNOWLEDGE],

@@ -313,3 +313,10 @@ button[type="submit"]:disabled { opacity: 0.55; cursor: progress; }
 }
 .score-table th { color: var(--muted); font-weight: 600; }
 .score-table sup { color: var(--accent); margin-left: 2px; }
+
+/* ---- grounded research ---- */
+.findings { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.findings li { line-height: 1.5; }
+.findings .chip { font-size: 12px; padding: 1px 8px; }
+.findings .quote { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.findings .reason { color: var(--err); font-size: 13px; }

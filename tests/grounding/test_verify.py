@@ -59,6 +59,7 @@ def test_report_rates() -> None:
     assert report.groundedness == 0.5
     assert report.citation_precision == pytest.approx(2 / 3)
     assert report.evidence_count == 2
+    assert report.evidence_urls == ["https://a.example/1", "https://b.example/2"]
 
 
 def test_no_citations_means_no_precision() -> None:

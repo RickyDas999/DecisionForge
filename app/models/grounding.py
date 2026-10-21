@@ -49,6 +49,8 @@ class GroundingReport(BaseModel):
 
     findings: list[CheckedFinding]
     evidence_count: int
+    #: URL of every result shown to the model; ``Result n`` is element ``n - 1``.
+    evidence_urls: list[str] = Field(default_factory=list)
     verified: int
     unsupported: int
     model_knowledge: int
