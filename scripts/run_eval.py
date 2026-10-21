@@ -10,9 +10,10 @@ Replay recorded real answers (zero cost, no key; needs a recorded cassette):
 
 Live (billable). Shows the worst-case cost and stops unless --yes-spend is given.
 Every live answer is recorded to the cassette, so re-running replays it for free.
---pick runs a balanced 5-case sample (2 comparison, 2 research, 1 brief):
+--pick runs a balanced 5-case sample (2 comparison, 2 research, 1 brief), and
+SEARCH_PROVIDER=duckduckgo uses live web search (its results are recorded too):
 
-    MODEL_PROVIDER=anthropic ANTHROPIC_API_KEY=... \
+    MODEL_PROVIDER=anthropic SEARCH_PROVIDER=duckduckgo ANTHROPIC_API_KEY=... \
         python scripts/run_eval.py --provider live --pick --yes-spend
 
 Compare against an earlier report to see regressions:
@@ -35,6 +36,8 @@ from app.providers.factory import create_model_provider
 from app.providers.replay import ReplayMode
 from app.providers.usage import LifetimeSpend
 from app.skills.local import LocalSkillRegistry
+from app.tools.search import SearchConfig, SearchProvider, SearchProviderType, create_search_provider
+from app.tools.search_replay import DEFAULT_SEARCH_CASSETTE, ReplaySearchProvider
 from app.web.demo_provider import DemoModelProvider, DemoSearchProvider
 
 
@@ -63,14 +66,19 @@ def main() -> int:
         return 2
 
     config = ModelConfig.from_env()
+    search_live = SearchConfig.from_env().provider is SearchProviderType.DUCKDUCKGO
+    search: SearchProvider = DemoSearchProvider()
     if args.provider == "demo":
         provider = DemoModelProvider()
     elif args.provider == "replay":
-        if not Path(config.replay_cassette).exists():
-            print(f"no cassette at {config.replay_cassette}; record one with --provider live",
+        missing = [p for p in (config.replay_cassette, DEFAULT_SEARCH_CASSETTE) if not Path(p).exists()]
+        if missing:
+            print(f"no cassette at {', '.join(missing)}; record one with --provider live",
                   file=sys.stderr)
             return 2
         provider = create_model_provider(config.model_copy(update={"replay_mode": ReplayMode.REPLAY}))
+        # The recorded evidence, so every prompt (and so every answer) matches.
+        search = ReplaySearchProvider(None, mode=ReplayMode.REPLAY)
     else:
         if config.provider is not ModelProviderType.ANTHROPIC:
             print("--provider live needs MODEL_PROVIDER=anthropic and ANTHROPIC_API_KEY", file=sys.stderr)
@@ -78,7 +86,8 @@ def main() -> int:
         spend = LifetimeSpend(config.spend_ledger_path, config.spend_limit_usd)
         worst = len(cases) * config.run_budget.max_usd
         print(
-            f"{len(cases)} cases on {config.resolved_model}: worst case ${worst:.4f} "
+            f"{len(cases)} cases on {config.resolved_model} with "
+            f"{'live DuckDuckGo' if search_live else 'offline demo'} search: worst case ${worst:.4f} "
             f"(${config.run_budget.max_usd} per case). Lifetime spend so far "
             f"${spend.total_usd:.5f} of ${spend.limit_usd:.2f}."
         )
@@ -88,13 +97,16 @@ def main() -> int:
         # Record every live answer so the same eval replays for free afterwards.
         mode = config.replay_mode if config.replay_mode is not ReplayMode.OFF else ReplayMode.AUTO
         provider = create_model_provider(config.model_copy(update={"replay_mode": mode}))
+        # Record the evidence too: live results drift, and replay needs identical prompts.
+        inner = create_search_provider(SearchConfig.from_env()) if search_live else search
+        search = ReplaySearchProvider(inner, mode=mode)
 
     run = asyncio.run(
         run_eval(
             cases,
             provider,
             label=args.label or args.provider,
-            search_provider=DemoSearchProvider(),
+            search_provider=search,
             skill_registry=LocalSkillRegistry(),
             run_budget=config.run_budget,
         )
