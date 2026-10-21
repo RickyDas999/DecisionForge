@@ -155,7 +155,8 @@ class AnthropicModelProvider(ModelProvider):
 
         if getattr(response, "stop_reason", None) == "max_tokens":
             raise ModelResponseError(
-                f"response hit max_tokens={self._max_tokens} and was truncated"
+                f"response hit max_tokens={self._max_tokens} and was truncated "
+                f"({_truncation_details(response, output_tokens)})"
             )
         return _extract_text(response)
 
@@ -202,6 +203,17 @@ def _extract_text(response: Any) -> str:
     if not parts:
         raise ModelResponseError("Anthropic response contained no usable text")
     return "".join(parts)
+
+
+def _truncation_details(response: Any, output_tokens: int) -> str:
+    """Where a truncated response's tokens went, without echoing its content."""
+    blocks = getattr(response, "content", None) or []
+    types = [getattr(b, "type", "?") for b in blocks]
+    text = "".join(getattr(b, "text", "") or "" for b in blocks if getattr(b, "type", None) == "text")
+    return (
+        f"{output_tokens} output tokens; blocks: {', '.join(types) or 'none'}; "
+        f"text: {len(text)} chars, {text.count(chr(10))} line breaks"
+    )
 
 
 def _strip_json_fence(text: str) -> str:

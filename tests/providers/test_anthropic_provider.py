@@ -247,10 +247,16 @@ def test_effort_and_thinking_omitted_for_haiku_4_5() -> None:
     assert "output_config" not in req and "thinking" not in req
 
 
-def test_truncated_response_raises() -> None:
-    provider, _ = _provider(_billed_message('{"a":', 10, 800, stop="max_tokens"))
-    with pytest.raises(ModelResponseError):
+def test_truncated_response_raises_with_diagnostics() -> None:
+    message = _billed_message('{\n  "a": [\n    1,', 10, 800, stop="max_tokens")
+    message.content.insert(0, SimpleNamespace(type="thinking", thinking=""))
+    provider, _ = _provider(message)
+    with pytest.raises(ModelResponseError) as excinfo:
         asyncio.run(provider.generate_text(system_prompt="s", user_prompt="u"))
+    text = str(excinfo.value)
+    assert "800 output tokens" in text
+    assert "blocks: thinking, text" in text
+    assert "2 line breaks" in text
 
 
 def test_structured_schema_is_compact() -> None:
