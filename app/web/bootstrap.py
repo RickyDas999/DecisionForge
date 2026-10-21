@@ -33,6 +33,7 @@ def create_demo_service(
         search_provider=DemoSearchProvider(),
         decision_engine=True,
         adaptive_samples=True,
+        grounded_research=True,
     )
     return DecisionForgeService(dispatcher, repository), repository
 

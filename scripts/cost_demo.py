@@ -52,7 +52,7 @@ def main() -> int:
 
     service = DecisionForgeService(
         create_dispatcher(provider, search_provider=DemoSearchProvider(), decision_engine=True,
-                          adaptive_samples=True),
+                          adaptive_samples=True, grounded_research=True),
         NullRunRepository(),
         run_budget=config.run_budget,
     )

@@ -57,6 +57,8 @@ PERSISTENCE_ENV_VAR = "PERSISTENCE_ENABLED"
 DECISION_ENGINE_ENV_VAR = "DECISION_ENGINE"
 #: ``false`` disables the second estimate on close comparisons.
 ADAPTIVE_SAMPLES_ENV_VAR = "ADAPTIVE_SAMPLES"
+#: ``false`` restores free-text research findings.
+GROUNDED_RESEARCH_ENV_VAR = "GROUNDED_RESEARCH"
 
 
 def _env_bool(name: str, *, default: bool) -> bool:
@@ -138,6 +140,7 @@ def create_deployment_app() -> FastAPI:
         search_provider=search_provider,
         decision_engine=_env_bool(DECISION_ENGINE_ENV_VAR, default=True),
         adaptive_samples=_env_bool(ADAPTIVE_SAMPLES_ENV_VAR, default=True),
+        grounded_research=_env_bool(GROUNDED_RESEARCH_ENV_VAR, default=True),
     )
     service = DecisionForgeService(
         dispatcher, repository, run_budget=model_config.run_budget

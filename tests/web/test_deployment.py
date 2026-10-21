@@ -289,3 +289,20 @@ def test_vercel_spend_ledger_goes_to_tmp(monkeypatch) -> None:
     monkeypatch.setattr(deployment, "_model_provider", spy)
     deployment.create_deployment_app()
     assert seen["path"].startswith("/tmp/")
+
+
+def test_deployed_research_is_grounded_by_default(monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    import app.web.deployment as deployment
+
+    monkeypatch.setenv("MODEL_PROVIDER", "mock")
+    monkeypatch.setenv("PERSISTENCE_ENABLED", "false")
+    for name in ("GROUNDED_RESEARCH", "SEARCH_PROVIDER", "REPLAY_MODE"):
+        monkeypatch.delenv(name, raising=False)
+    client = TestClient(deployment.create_deployment_app())
+    body = client.post("/api/runs", json={"user_request": "Research agentic AI workflows"}).json()
+    assert body["route"] == "research"
+    grounding = body["result"]["grounding"]
+    assert grounding["verified"] >= 1
+    assert body["result"]["sources"]  # derived from verified citations
