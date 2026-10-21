@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from app.models.specialists import NonBlankStr
+from app.models.common import NonBlankStr
 
 
 class SearchResult(BaseModel):

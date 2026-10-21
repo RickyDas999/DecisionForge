@@ -30,7 +30,8 @@ from app.models.routing import AgentRoute, RoutingInput
 from app.models.specialists import BriefInput, ComparisonInput, ResearchInput
 from app.orchestration.exceptions import MissingBriefContextError, UnexpectedRouteError
 from app.orchestration.observer import NULL_OBSERVER, DispatchObserver
-from app.tools.context import build_search_context, combine_contexts
+from app.models.search import SearchResult
+from app.tools.context import build_search_context, combine_contexts, rendered_results
 from app.tools.policy import search_enabled_for_route
 from app.tools.search import SearchProvider
 
@@ -77,17 +78,21 @@ class DecisionForgeDispatcher:
 
         # 2. Deterministic specialist selection — exactly one specialist call.
         if route is AgentRoute.RESEARCH:
+            provided, evidence = await self._context_for(route, request, obs)
             agent_input: Any = ResearchInput(
                 user_request=request.user_request,
-                provided_context=await self._context_for(route, request, obs),
+                provided_context=provided,
+                evidence=evidence,
             )
             result = await self._run_specialist(
                 self.research_agent, agent_input, route, context, obs
             )
         elif route is AgentRoute.COMPARISON:
+            provided, evidence = await self._context_for(route, request, obs)
             agent_input = ComparisonInput(
                 user_request=request.user_request,
-                provided_context=await self._context_for(route, request, obs),
+                provided_context=provided,
+                evidence=evidence,
             )
             result = await self._run_specialist(
                 self.comparison_agent, agent_input, route, context, obs
@@ -131,19 +136,20 @@ class DecisionForgeDispatcher:
         route: AgentRoute,
         request: DispatchRequest,
         obs: DispatchObserver,
-    ) -> str | None:
+    ) -> tuple[str | None, list[SearchResult]]:
         """User context, optionally merged with one deterministic search pass.
 
-        No search provider, or a non-search route -> the request's context is
-        returned unchanged. A search failure propagates: the request stops with
-        no specialist call, no retry, and no fallback.
+        Returns the context text and the search results rendered into it
+        (``Result n`` is element ``n - 1``). No search provider, or a non-search
+        route -> the request's context unchanged and no evidence. A search
+        failure propagates: the request stops with no specialist call, no
+        retry, and no fallback.
         """
         if self.search_provider is None or not search_enabled_for_route(route):
-            return request.provided_context
+            return request.provided_context, []
 
         obs.on_search_started(request.user_request)
         response = await self.search_provider.search(request.user_request)
         obs.on_search_completed(response)
-        return combine_contexts(
-            request.provided_context, build_search_context(response)
-        )
+        context = combine_contexts(request.provided_context, build_search_context(response))
+        return context, rendered_results(response)
