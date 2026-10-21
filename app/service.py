@@ -7,6 +7,10 @@ and zero retries. On any failure the run is marked ``failed``, the error text is
 stored, a ``run.failed`` event is recorded, and the original exception is
 re-raised unchanged.
 
+Every model call is metered by a per-run :class:`UsageLedger` (tokens, dollars,
+an ``llm.call`` event each) and capped by a :class:`RunBudget`; a call that could
+exceed the budget is refused before it is sent.
+
 ``run()`` returns a :class:`RunOutcome` (record + full event trace) assembled
 in-memory, so the result is available even when the repository is stateless
 (:class:`app.persistence.null.NullRunRepository`).
@@ -27,6 +31,7 @@ from app.models.search import SearchResponse
 from app.orchestration.dispatcher import DecisionForgeDispatcher
 from app.orchestration.observer import DispatchObserver
 from app.persistence.base import RunRepository
+from app.providers.usage import CallRecord, RunBudget, UsageLedger, UsageSummary, metered
 
 _SPECIALIST_CLASS_NAME = {
     AgentRoute.RESEARCH: "ResearchAgent",
@@ -51,6 +56,7 @@ class RunOutcome:
 
     record: RunRecord
     events: list[ExecutionEvent] = field(default_factory=list)
+    usage: UsageSummary | None = None
 
 
 class _PersistenceObserver(DispatchObserver):
@@ -107,9 +113,12 @@ class DecisionForgeService:
         self,
         dispatcher: DecisionForgeDispatcher,
         repository: RunRepository,
+        *,
+        run_budget: RunBudget | None = None,
     ) -> None:
         self._dispatcher = dispatcher
         self._repository = repository
+        self._run_budget = run_budget or RunBudget()
 
     @property
     def repository(self) -> RunRepository:
@@ -139,11 +148,21 @@ class DecisionForgeService:
         recorder.emit(EventType.RUN_STARTED)
         observer = _PersistenceObserver(self._repository, run_id, recorder)
 
+        def on_call(call: CallRecord) -> None:
+            recorder.emit(EventType.LLM_CALL, call.operation, **call.model_dump(mode="json"))
+
+        # Every model call inside this block is metered against the run budget.
+        ledger = UsageLedger(self._run_budget, on_record=on_call)
         try:
-            result = await self._dispatcher.dispatch(request, ctx, observer=observer)
+            with metered(ledger):
+                result = await self._dispatcher.dispatch(request, ctx, observer=observer)
         except Exception as exc:
             self._repository.mark_failed(run_id, error=_safe_error_text(exc))
-            recorder.emit(EventType.RUN_FAILED, type(exc).__name__)
+            recorder.emit(
+                EventType.RUN_FAILED,
+                type(exc).__name__,
+                usage=ledger.summary().model_dump(),
+            )
             raise
 
         result_json = result.model_dump_json()
@@ -151,7 +170,13 @@ class DecisionForgeService:
         self._repository.mark_completed(
             run_id, result_json=result_json, completed_at=completed_at
         )
-        recorder.emit(EventType.RUN_COMPLETED, result.route.value, route=result.route.value)
+        usage = ledger.summary()
+        recorder.emit(
+            EventType.RUN_COMPLETED,
+            result.route.value,
+            route=result.route.value,
+            usage=usage.model_dump(),
+        )
 
         completed = record.model_copy(
             update={
@@ -164,4 +189,4 @@ class DecisionForgeService:
                 "completed_at": completed_at,
             }
         )
-        return RunOutcome(record=completed, events=list(recorder.events))
+        return RunOutcome(record=completed, events=list(recorder.events), usage=usage)

@@ -44,6 +44,7 @@ class EventType(str, Enum):
     SEARCH_COMPLETED = "search.completed"
     SPECIALIST_STARTED = "specialist.started"
     SPECIALIST_COMPLETED = "specialist.completed"
+    LLM_CALL = "llm.call"
     RUN_COMPLETED = "run.completed"
     RUN_FAILED = "run.failed"
 

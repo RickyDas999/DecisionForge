@@ -37,6 +37,15 @@ def _llm_calls_from_events(events: list[ExecutionEvent]) -> int:
     return calls
 
 
+def _usage_from_events(events: list[ExecutionEvent]) -> dict[str, Any] | None:
+    """The run's token/cost summary, carried on its terminal event."""
+    for event in reversed(events):
+        if event.event_type in (EventType.RUN_COMPLETED, EventType.RUN_FAILED):
+            usage = event.metadata.get("usage")
+            return usage if isinstance(usage, dict) else None
+    return None
+
+
 class RunView(BaseModel):
     """One run, with its structured result parsed from storage."""
 
@@ -139,6 +148,8 @@ class RunResult(RunView):
     selected_skill: str | None
     llm_calls: int
     llm_calls_max: int = MAX_LLM_CALLS
+    #: Tokens and dollars for this run (``UsageSummary`` fields), when metered.
+    usage: dict[str, Any] | None = None
 
     events: list[EventView] = Field(default_factory=list)
 
@@ -152,6 +163,7 @@ class RunResult(RunView):
             **base.model_dump(),
             selected_skill=skill,
             llm_calls=_llm_calls_from_events(events),
+            usage=_usage_from_events(events),
             events=[EventView.from_event(e) for e in events],
         )
 

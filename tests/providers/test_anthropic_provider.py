@@ -170,3 +170,92 @@ def test_constructor_makes_no_request() -> None:
     client = _FakeAnthropicClient(_message("unused"))
     AnthropicModelProvider(api_key=FAKE_KEY, model=FAKE_MODEL, client=client)
     assert client.messages.last_request is None
+
+
+# -- cost controls -----------------------------------------------------------
+
+from app.providers.usage import (  # noqa: E402
+    BudgetExceededError,
+    CallSource,
+    LifetimeSpend,
+    RunBudget,
+    UsageLedger,
+    metered,
+)
+
+
+def _billed_message(text: str, input_tokens: int, output_tokens: int, stop: str = "end_turn"):
+    return SimpleNamespace(
+        content=[SimpleNamespace(type="text", text=text)],
+        usage=SimpleNamespace(input_tokens=input_tokens, output_tokens=output_tokens),
+        stop_reason=stop,
+    )
+
+
+def test_live_call_is_recorded_in_active_ledger() -> None:
+    provider, _ = _provider(_billed_message("ok", 1000, 200), model="claude-haiku-5-5", max_tokens=800)
+    ledger = UsageLedger()
+    with metered(ledger):
+        asyncio.run(provider.generate_text(system_prompt="s", user_prompt="u"))
+    (call,) = ledger.calls
+    assert call.source is CallSource.LIVE
+    assert (call.input_tokens, call.output_tokens) == (1000, 200)
+    assert call.cost_usd == pytest.approx(0.0002)
+
+
+def test_over_budget_call_is_never_sent() -> None:
+    provider, client = _provider(_billed_message("ok", 1, 1), max_tokens=100_000)
+    with metered(UsageLedger(RunBudget(max_usd=0.001))):
+        with pytest.raises(BudgetExceededError):
+            asyncio.run(provider.generate_text(system_prompt="s", user_prompt="u"))
+    assert client.messages.last_request is None
+
+
+def test_lifetime_cap_blocks_and_accumulates(tmp_path) -> None:
+    spend = LifetimeSpend(tmp_path / "spend.json", limit_usd=0.0006)
+    provider, client = _provider(
+        _billed_message("ok", 1000, 200), model="claude-haiku-5-5",
+        max_tokens=800, lifetime_spend=spend,
+    )
+    asyncio.run(provider.generate_text(system_prompt="s", user_prompt="u"))
+    assert spend.total_usd == pytest.approx(0.0002)
+    # next worst case (~0.0004) on top of 0.0002 spent exceeds 0.0006
+    client.messages.last_request = None
+    with pytest.raises(BudgetExceededError):
+        asyncio.run(provider.generate_text(system_prompt="s", user_prompt="u" * 300))
+    assert client.messages.last_request is None
+
+
+def test_low_effort_and_thinking_off_sent_to_haiku_5_5() -> None:
+    provider, client = _provider(
+        _billed_message("ok", 1, 1), model="claude-haiku-5-5",
+        effort="low", disable_thinking=True,
+    )
+    asyncio.run(provider.generate_text(system_prompt="s", user_prompt="u"))
+    req = client.messages.last_request
+    assert req["output_config"] == {"effort": "low"}
+    assert req["thinking"] == {"type": "disabled"}
+
+
+def test_effort_and_thinking_omitted_for_haiku_4_5() -> None:
+    provider, client = _provider(
+        _billed_message("ok", 1, 1), model="claude-haiku-4-5",
+        effort="low", disable_thinking=True,
+    )
+    asyncio.run(provider.generate_text(system_prompt="s", user_prompt="u"))
+    req = client.messages.last_request
+    assert "output_config" not in req and "thinking" not in req
+
+
+def test_truncated_response_raises() -> None:
+    provider, _ = _provider(_billed_message('{"a":', 10, 800, stop="max_tokens"))
+    with pytest.raises(ModelResponseError):
+        asyncio.run(provider.generate_text(system_prompt="s", user_prompt="u"))
+
+
+def test_structured_schema_is_compact() -> None:
+    provider, client = _provider(_billed_message('{"approved": true, "score": 0.5}', 1, 1))
+    asyncio.run(provider.generate_structured(
+        system_prompt="s", user_prompt="u", response_model=JudgeResult
+    ))
+    assert '": ' not in client.messages.last_request["system"].split("JSON Schema:")[1]

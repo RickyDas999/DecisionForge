@@ -74,3 +74,39 @@ def test_direct_construction_rejects_unknown_provider() -> None:
 def test_max_tokens_must_be_positive() -> None:
     with pytest.raises(ValidationError):
         ModelConfig(max_tokens=0)
+
+
+def test_cost_defaults_are_cheap() -> None:
+    config = ModelConfig.from_env({})
+    assert config.resolved_model == "claude-haiku-5-5"
+    assert config.max_tokens == 800
+    assert config.effort == "low"
+    assert config.disable_thinking is True
+    assert config.run_budget.max_usd == 0.002
+    assert config.run_budget.max_calls == 3
+    assert config.spend_limit_usd == 0.03
+
+
+def test_cost_settings_from_env() -> None:
+    config = ModelConfig.from_env({
+        "ANTHROPIC_EFFORT": "none",
+        "ANTHROPIC_DISABLE_THINKING": "false",
+        "RUN_BUDGET_USD": "0.01",
+        "RUN_MAX_LLM_CALLS": "5",
+        "SPEND_LIMIT_USD": "0.10",
+        "REPLAY_MODE": "replay",
+        "REPLAY_CASSETTE": "x.json",
+    })
+    assert config.effort is None
+    assert config.disable_thinking is False
+    assert config.run_budget.max_usd == 0.01
+    assert config.run_budget.max_calls == 5
+    assert config.spend_limit_usd == 0.10
+    assert config.replay_mode.value == "replay"
+    assert config.replay_cassette == "x.json"
+
+
+@pytest.mark.parametrize("name,value", [("ANTHROPIC_EFFORT", "turbo"), ("REPLAY_MODE", "maybe")])
+def test_bad_cost_settings_raise(name: str, value: str) -> None:
+    with pytest.raises(ModelConfigurationError):
+        ModelConfig.from_env({name: value})

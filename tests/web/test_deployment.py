@@ -272,3 +272,20 @@ def test_null_repository_writes_are_noops_and_reads_are_empty() -> None:
     assert repo.get_run("r1") is None
     assert repo.list_recent_runs() == []
     assert repo.get_events("r1") == []
+
+
+def test_vercel_spend_ledger_goes_to_tmp(monkeypatch) -> None:
+    import app.web.deployment as deployment
+
+    seen = {}
+    real = deployment._model_provider
+
+    def spy(config):
+        seen["path"] = config.spend_ledger_path
+        return real(config)
+
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.delenv("SPEND_LEDGER_PATH", raising=False)
+    monkeypatch.setattr(deployment, "_model_provider", spy)
+    deployment.create_deployment_app()
+    assert seen["path"].startswith("/tmp/")

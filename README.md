@@ -122,14 +122,32 @@ search failure stops the request with no retry and no fallback.
 | Lever | Value |
 |---|---|
 | LLM calls per successful request | **2** (1 routing + 1 specialist) |
-| Retries | 0 |
-| Fallback agents | 0 |
-| Parallel LLM calls | 0 |
-| LLM calls added by search / skills / persistence / the web layer | 0 |
+| Default model | `claude-haiku-5-5` ($0.10 / $0.50 per million tokens in / out) |
+| Effort / thinking | `low` / disabled, so no hidden thinking tokens are billed |
+| Output cap per call | 800 tokens; the JSON schema is sent minified |
+| Per-run budget | **$0.002** and 3 calls (`RUN_BUDGET_USD`, `RUN_MAX_LLM_CALLS`) |
+| Lifetime spend cap | **$0.03** across all runs (`SPEND_LIMIT_USD`, kept in `data/spend.json`) |
+| Typical run | about **$0.0003** (shown in the UI and the trace) |
+| Retries / fallback agents / parallel calls | 0 / 0 / 0 |
 
-The UI shows `LLM calls: 2 / 2 max` on every result. This is not autonomous
-multi-step reasoning — there are no loops, no self-critique, and the model never
-decides to use a tool.
+**Metering.** Every model call is recorded in a per-run `UsageLedger`
+(`app/providers/usage.py`) and appears in the trace as an `llm.call` event with
+token counts and dollars. Before a live call is sent, its *worst case* (estimated
+input plus the full `max_tokens`) is checked against the run budget and the
+lifetime cap; if either could be exceeded, `BudgetExceededError` is raised and
+nothing is sent. Offline runs show what the same calls would cost live.
+
+**Record/replay** (`app/providers/replay.py`). With `REPLAY_MODE=auto`, each
+distinct prompt is paid for once and stored in a cassette
+(`cassettes/default.json`); `REPLAY_MODE=replay` then serves those real outputs
+with no key and no cost, for tests, CI, and the hosted demo.
+
+```bash
+python scripts/cost_demo.py "Compare PostgreSQL and MongoDB"   # per-call cost table, offline
+```
+
+This is not autonomous multi-step reasoning: there are no loops and no
+self-critique, and the model never decides to use a tool.
 
 ## Tech stack
 
@@ -165,6 +183,7 @@ python scripts/eval_demo.py          # routing accuracy + specialist contract ch
 python scripts/skills_demo.py        # progressive disclosure
 python scripts/tools_demo.py         # search tool + context builder
 python scripts/persistence_demo.py   # one run persisted to a temp SQLite DB + its events
+python scripts/cost_demo.py          # tokens and dollars per model call
 ```
 
 Real Claude / real search are opt-in and billable — see `docs/architecture.md`
@@ -192,7 +211,9 @@ no database, no second service.
    ```
    MODEL_PROVIDER=anthropic
    ANTHROPIC_API_KEY=<your key>
-   ANTHROPIC_MODEL=claude-haiku-4-5
+   ANTHROPIC_MODEL=claude-haiku-5-5      # the default if unset
+   RUN_BUDGET_USD=0.002                  # hard per-request ceiling
+   SPEND_LIMIT_USD=0.03                  # lifetime cap (per instance; Vercel's disk is ephemeral)
    PERSISTENCE_ENABLED=false
    ```
 4. **Deploy** (auto-deploys on every push).
