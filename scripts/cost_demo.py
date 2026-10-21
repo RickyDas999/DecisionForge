@@ -64,7 +64,7 @@ def main() -> int:
         )
     except ModelProviderError as exc:
         print(f"run failed: {type(exc).__name__}: {exc}", file=sys.stderr)
-        print(f"lifetime live spend: ${spend.total_usd:.5f} of ${spend.limit_usd:.2f} cap")
+        print(f"lifetime live spend: ${spend.total_usd:.5f} of ${spend.limit_usd:.4f} cap")
         return 1
 
     print(f"route: {outcome.record.route.value}\n")
@@ -81,7 +81,7 @@ def main() -> int:
         f"\ntotal: {u.calls} calls, ${u.cost_usd:.5f} charged, ${u.list_cost_usd:.5f} if live "
         f"(run budget ${u.budget_usd:.4f}, {u.max_calls} calls max)"
     )
-    print(f"lifetime live spend: ${spend.total_usd:.5f} of ${spend.limit_usd:.2f} cap")
+    print(f"lifetime live spend: ${spend.total_usd:.5f} of ${spend.limit_usd:.4f} cap")
     return 0
 
 

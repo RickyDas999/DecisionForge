@@ -89,7 +89,7 @@ def main() -> int:
             f"{len(cases)} cases on {config.resolved_model} with "
             f"{'live DuckDuckGo' if search_live else 'offline demo'} search: worst case ${worst:.4f} "
             f"(${config.run_budget.max_usd} per case). Lifetime spend so far "
-            f"${spend.total_usd:.5f} of ${spend.limit_usd:.2f}."
+            f"${spend.total_usd:.5f} of ${spend.limit_usd:.4f}."
         )
         if not args.yes_spend:
             print("Re-run with --yes-spend to make these live calls.", file=sys.stderr)
