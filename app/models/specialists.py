@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.models.common import NonBlankStr
 from app.models.decision import DecisionModel, DecisionReport
+from app.models.grounding import GroundingReport
 from app.models.search import SearchResult
 
 
@@ -37,8 +38,10 @@ class ResearchResponse(BaseModel):
     summary: str
     key_findings: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
-    #: Empty in Phase 3 — no real search tool exists yet.
+    #: URLs of the evidence the findings cite.
     sources: list[str] = Field(default_factory=list)
+    #: Present in grounded mode: every finding's citation, checked in code.
+    grounding: GroundingReport | None = None
 
 
 # --------------------------------------------------------------------------- #

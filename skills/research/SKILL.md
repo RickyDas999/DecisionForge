@@ -21,8 +21,8 @@ topic.
 ## Rules
 
 - Use only the supplied context plus general model knowledge.
-- If external research context is supplied, synthesize it carefully and cite it
-  in `sources`.
+- If external research context is supplied, synthesize it carefully and cite
+  the result each claim relies on, in whatever form the output asks for.
 - If no external evidence is supplied:
   - do not claim that live, web, or primary-source research was performed;
   - do not fabricate citations — leave `sources` empty;
