@@ -22,8 +22,8 @@ A practical run sheet. No slide deck — the frontend and the code are the visua
 - **DecisionForge**: a small, constrained multi-agent system. One orchestrator
   classifies the request and routes it to **exactly one** of three specialists.
   Deterministic Python does everything else.
-- The headline constraint: **at most two LLM calls per request** — 1 to route,
-  1 to answer.
+- The headline constraint: **at most three LLM calls per request**: 1 to route,
+  1 to answer, and 1 more only when a comparison is too close to call.
 
 ## 1:00 – 3:30 · Run the main request (Comparison)
 
@@ -34,7 +34,7 @@ A practical run sheet. No slide deck — the frontend and the code are the visua
   specialist → processing.
 - When it returns, point at the chips: **Route: Comparison**, **Specialist:
   Comparison Agent**, **Skill: Comparison**, **Search: used**, **Confidence**,
-  **LLM calls: 2 / 2**.
+  **LLM calls: 2 / 3** (3 / 3 if the comparison was a close call), and **Cost**.
 
 ## 3:30 – 5:00 · Explain the result (non-technical)
 

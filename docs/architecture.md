@@ -111,7 +111,9 @@ specialist selection** — a single `if route is …` chain, no second semantic 
 An optional deterministic search step (§13) may add network I/O between routing
 and the specialist call, but never a model call.
 
-- **Maximum 2 LLM calls** per request (1 orchestrator + 1 specialist; search is 0).
+- **Maximum 3 LLM calls** per request: 1 orchestrator + 1 specialist, plus 1
+  second estimate only when the decision engine finds a comparison too close to
+  call (search is 0). The per-run budget enforces the ceiling before each call.
 - **No fallback agent** — if the specialist, provider, or parsing fails, the
   error propagates; the dispatcher never tries another route or agent.
 - **No retry**, **no loop**, **no parallel execution** — the path is strictly

@@ -28,7 +28,7 @@ Compare PostgreSQL and MongoDB for a small SaaS startup expecting rapid growth.
 | Specialist | Comparison Agent |
 | Agent Skill | `comparison` |
 | Search | **runs** — Comparison is search-eligible (offline canned results in demo mode; DuckDuckGo if `SEARCH_PROVIDER=duckduckgo`) |
-| LLM calls | 2 / 2 (1 routing + 1 specialist) |
+| LLM calls | 2 / 3 (1 routing + 1 specialist), or 3 / 3 when the comparison is a close call and gets a second estimate |
 | Result contains | options with advantages/disadvantages, key tradeoffs, a recommendation, rationale, **confidence**, limitations |
 | Event trace | `run.started → route.selected → search.started → search.completed → specialist.started → specialist.completed → run.completed` |
 
@@ -61,7 +61,7 @@ Research the current landscape of vector databases for a small AI startup.
 | Specialist | Research Agent |
 | Agent Skill | `research` |
 | Search | runs (research is search-eligible) |
-| LLM calls | 2 / 2 |
+| LLM calls | 2 / 3 |
 | Result contains | topic, summary, key findings, sources, limitations |
 
 **Point to make:** the Research Agent's prompt forbids claiming live research or
@@ -95,7 +95,7 @@ needs to pick a direction before the next planning cycle.
 | Specialist | Brief Agent |
 | Agent Skill | `executive-brief` |
 | Search | **skipped** — Brief never searches (it transforms supplied material) |
-| LLM calls | 2 / 2 |
+| LLM calls | 2 / 3 |
 | Result contains | title, executive summary, key points, optional recommendation, action items |
 | Event trace | `run.started → route.selected → specialist.started → specialist.completed → run.completed` (no `search.*`) |
 
@@ -114,4 +114,4 @@ Show `app/orchestration/dispatcher.py` (the brief branch) and
 | Skill | `research` | `comparison` | `executive-brief` |
 | Search runs? | yes | yes | **no** |
 | Needs context? | optional | optional | **required** |
-| LLM calls | 2 | 2 | 2 |
+| LLM calls | 2 | 2, or 3 on a close call | 2 |

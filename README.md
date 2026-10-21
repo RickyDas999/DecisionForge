@@ -16,7 +16,7 @@ flowchart TD
     O --> R{AgentRoute}
     R -->|deterministic Python| S[optional SearchProvider<br/>0 LLM calls]
     S --> K[route → skill<br/>static mapping]
-    K --> X{{exactly one specialist<br/>LLM call #2}}
+    K --> X{{exactly one specialist<br/>LLM call #2<br/>+ #3 only on a close comparison}}
     X --> RA[ResearchAgent]
     X --> CA[ComparisonAgent]
     X --> BA[BriefAgent]
@@ -60,14 +60,15 @@ User
  → deterministic Python      dispatch, no second routing step
  → optional SearchProvider   research / comparison only  (0 LLM calls)
  → route → skill (static)    SKILL.md body → specialist prompt
- → exactly one specialist    the work                    (LLM call #2)
+ → exactly one specialist    the work                    (LLM call #2, +#3 on a close comparison)
  → deterministic Python      format, persist, trace
  → structured result + event trace
 ```
 
-**Hard rules** (enforced by tests): max **2 LLM calls** per successful request;
-**no** retries, loops, fallback agents, or parallel LLM calls; specialists never
-call other agents; the LLM only does semantic work.
+**Hard rules** (enforced by tests): max **3 LLM calls** per request (the third
+only when a comparison is a close call) and a $0.002 per-run budget; **no**
+retries, loops, fallback agents, or parallel LLM calls; specialists never call
+other agents; the LLM only does semantic work.
 
 Full detail and the deployment topology: **`docs/architecture.md`**.
 
@@ -121,6 +122,25 @@ Schema flexibility carried 24% of the weight (now 20%), MongoDB would win."*
 The UI shows win-probability bars, criteria weights, the score-range table with
 citations, and the flip points. Set `DECISION_ENGINE=false` to restore the
 free-text comparison specialist.
+
+### Adaptive uncertainty
+
+Spending more compute only where it changes the answer:
+
+- If the first analysis is **robust** (win probability ≥ 80%), the run stops
+  there: 2 LLM calls in total.
+- If it is **leaning or a toss-up**, the agent takes **one** more, independently
+  framed extraction ("score it from scratch as a skeptical reviewer"). The two
+  samples are merged (`app/decision/ensemble.py`): shared scores take the
+  envelope of both ranges and weights are averaged. The merged model is then
+  re-simulated, so the samples' disagreement shows up as lower confidence
+  instead of being averaged away. The report records `samples: 2` and the
+  measured disagreement.
+- A failed second call (budget, bad JSON) falls back to the first answer.
+  `ADAPTIVE_SAMPLES=false` turns this off.
+
+Offline estimate: about $0.0004 for a clear comparison and $0.0007 for a close
+one (3 calls), both under the $0.002 per-run budget.
 
 ## Agent Skills
 
@@ -255,7 +275,7 @@ no database, no second service.
 The deployment is **stateless** — Vercel's filesystem is ephemeral, so
 `GET /api/runs` returns `[]` and each `POST /api/runs` response carries the full
 result + trace. Durable history is a local feature (`PERSISTENCE_ENABLED=true`).
-A successful request is at most 2 LLM calls in every mode.
+A request is at most 3 LLM calls (2 unless a comparison is a close call) in every mode.
 
 ## Demo
 
@@ -267,11 +287,11 @@ For the 10-minute live demo:
 
 Recommended primary scenario: **Comparison** — it exercises routing, specialist
 selection, the search tool, an Agent Skill, structured output, a recommendation
-with confidence, and the two-call ceiling in one request.
+with a simulated win probability, and the call ceiling in one request.
 
 ## Evaluation
 
-`evals/golden_set.json` holds 30 hand-written cases (12 comparison, 10 research,
+`evals/golden_set.json` holds 36 hand-written cases (18 comparison, 10 research,
 8 brief), including deliberately ambiguous wording ("Help me decide between…",
 "Summarize what zero-trust means…"). `scripts/run_eval.py` runs every case end to
 end through the real pipeline and scores it with deterministic metrics, with no
@@ -288,6 +308,13 @@ LLM judge:
 Each report (`evals/reports/<label>.md` + `.json`) includes the cost per case,
 call counts, and p50 latency. `--baseline` adds a delta column for regression
 tracking.
+
+**Calibration** (`app/evaluation/calibration.py`): for the 13 comparisons with a
+clear-cut answer, the winner's win probability is treated as a prediction.
+Reports include the **Brier score**, the **expected calibration error** and a
+reliability table, which answer the question: when DecisionForge says 80%, is it
+right about 80% of the time? These are reported, not gated on, because a few
+dozen cases make them noisy.
 
 ```bash
 python scripts/run_eval.py                          # offline demo provider, $0
@@ -307,7 +334,7 @@ pytest
 ```
 
 ~300 tests, all offline — the Anthropic SDK and any search backend are mocked;
-SQLite uses temp files. Coverage includes the two-call ceiling per route, skill
+SQLite uses temp files. Coverage includes the call ceiling per route, skill
 isolation, search policy, stateless vs. persistent modes, the Vercel entrypoint's
 import-safety, and a deterministic routing-evaluation harness
 (`app/evaluation/`, `scripts/eval_demo.py`).
