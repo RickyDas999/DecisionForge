@@ -244,7 +244,7 @@ class LifetimeSpend:
         if total + worst_case_usd > self.limit_usd:
             raise BudgetExceededError(
                 f"lifetime spend ${total:.5f} + this call's worst case "
-                f"${worst_case_usd:.5f} would exceed the ${self.limit_usd:.2f} cap "
+                f"${worst_case_usd:.5f} would exceed the ${self.limit_usd:.4f} cap "
                 f"({self.path}); raise SPEND_LIMIT_USD to allow more"
             )
 

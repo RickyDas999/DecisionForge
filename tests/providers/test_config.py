@@ -79,7 +79,7 @@ def test_max_tokens_must_be_positive() -> None:
 def test_cost_defaults_are_cheap() -> None:
     config = ModelConfig.from_env({})
     assert config.resolved_model == "claude-haiku-5-5"
-    assert config.max_tokens == 800
+    assert config.max_tokens == 1200
     assert config.effort == "low"
     assert config.disable_thinking is True
     assert config.run_budget.max_usd == 0.002

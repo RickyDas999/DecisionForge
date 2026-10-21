@@ -95,3 +95,16 @@ def test_lifetime_spend_accumulates_and_caps(tmp_path) -> None:
     assert LifetimeSpend(tmp_path / "spend.json").total_usd == pytest.approx(0.0009)
     with pytest.raises(BudgetExceededError):
         spend.check(0.0002)
+
+
+def test_default_cap_lets_a_close_call_comparison_fit_the_default_budget() -> None:
+    """Routing, then two decision-model extractions, at realistic input sizes."""
+    from app.providers.config import DEFAULT_MAX_TOKENS
+
+    ledger = UsageLedger(RunBudget())
+    for estimated_input, actual_in, actual_out in ((900, 700, 40), (1800, 1400, 600), (1900, 1500, 600)):
+        ledger.check(model="claude-haiku-5-5", input_tokens=estimated_input,
+                     max_output_tokens=DEFAULT_MAX_TOKENS)
+        ledger.record(operation="x", model="claude-haiku-5-5", source=CallSource.LIVE,
+                      input_tokens=actual_in, output_tokens=actual_out)
+    assert ledger.summary().cost_usd < RunBudget().max_usd

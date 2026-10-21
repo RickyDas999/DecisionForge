@@ -26,6 +26,7 @@ from app.models.dispatch import DispatchRequest
 from app.models.persistence import EventType
 from app.persistence.null import NullRunRepository
 from app.providers.config import ModelConfig, ModelProviderType
+from app.providers.exceptions import ModelProviderError
 from app.providers.factory import create_model_provider
 from app.providers.replay import ReplayMode
 from app.providers.usage import LifetimeSpend
@@ -56,9 +57,15 @@ def main() -> int:
         NullRunRepository(),
         run_budget=config.run_budget,
     )
-    outcome = asyncio.run(
-        service.run(DispatchRequest(user_request=args.request, provided_context=args.context))
-    )
+    spend = LifetimeSpend(config.spend_ledger_path, config.spend_limit_usd)
+    try:
+        outcome = asyncio.run(
+            service.run(DispatchRequest(user_request=args.request, provided_context=args.context))
+        )
+    except ModelProviderError as exc:
+        print(f"run failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        print(f"lifetime live spend: ${spend.total_usd:.5f} of ${spend.limit_usd:.4f} cap")
+        return 1
 
     print(f"route: {outcome.record.route.value}\n")
     print(f"{'call':<22}{'source':<11}{'in':>7}{'out':>7}{'charged':>11}{'if live':>11}")
@@ -74,8 +81,7 @@ def main() -> int:
         f"\ntotal: {u.calls} calls, ${u.cost_usd:.5f} charged, ${u.list_cost_usd:.5f} if live "
         f"(run budget ${u.budget_usd:.4f}, {u.max_calls} calls max)"
     )
-    spend = LifetimeSpend(config.spend_ledger_path, config.spend_limit_usd)
-    print(f"lifetime live spend: ${spend.total_usd:.5f} of ${spend.limit_usd:.2f} cap")
+    print(f"lifetime live spend: ${spend.total_usd:.5f} of ${spend.limit_usd:.4f} cap")
     return 0
 
 
