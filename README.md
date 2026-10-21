@@ -81,14 +81,46 @@ Exactly four logical agents:
 - **ResearchAgent** — investigates/explains a topic; returns summary, key
   findings, sources, limitations. Won't claim live research or invent citations
   when no evidence is supplied.
-- **ComparisonAgent** — compares alternatives; returns options with
-  advantages/disadvantages, tradeoffs, a recommendation, rationale, a confidence
-  value, limitations.
+- **ComparisonAgent**: compares alternatives. With the decision engine on (the
+  default in the app), it does not write a verdict. It extracts a decision model
+  that deterministic code scores and simulates (see *Decision engine* below), and
+  the options, recommendation, confidence and tradeoffs are generated from those
+  numbers.
 - **BriefAgent** — transforms user-supplied context into a titled executive
   brief with key points and action items. Requires context; performs no
   research.
 
 Each specialist is a leaf: one model call, no delegation.
+
+## Decision engine
+
+An LLM is good at reading a messy question and knowing what matters; it is bad
+at consistent arithmetic and honest confidence numbers. So the comparison route
+splits the work (neuro-symbolic):
+
+1. **LLM, one call:** extract a `DecisionModel`: 2-4 options, the criteria that
+   matter for *this* decision with weights, and a **low-high score range** (0-10)
+   for every option and criterion, each citing the search result that supports
+   it, or `null` for general knowledge (`app/models/decision.py`).
+2. **NumPy, $0** (`app/decision/engine.py`):
+   - **Weighted score** for each option, using range midpoints.
+   - **Monte Carlo simulation**: 4,000 draws with weights from a Dirichlet
+     around the stated weights and scores uniform within their ranges. The share
+     of wins is each option's **win probability**, and the verdict is *robust*
+     (≥ 80%), *leaning* (≥ 60%) or *toss-up*.
+   - **Flip points**: for each criterion, the exact weight at which a different
+     option would win. Scores are linear in that weight, so the crossing is
+     solved in closed form rather than searched for.
+3. **Deterministic prose** (`app/decision/summary.py`): recommendation =
+   simulation winner, confidence = its win probability, tradeoffs = flip points.
+   The text cannot disagree with the math.
+
+Example output: *"PostgreSQL: a robust winner (wins 83% of simulations). If
+Schema flexibility carried 24% of the weight (now 20%), MongoDB would win."*
+
+The UI shows win-probability bars, criteria weights, the score-range table with
+citations, and the flip points. Set `DECISION_ENGINE=false` to restore the
+free-text comparison specialist.
 
 ## Agent Skills
 

@@ -13,6 +13,8 @@ dependencies = [
     # The FastAPI web app / Vercel serverless function is now a first-class
     # deliverable, so its framework is a core dependency (matches requirements.txt).
     "fastapi>=0.110",
+    # The decision engine's scoring, Monte Carlo simulation and flip analysis.
+    "numpy>=1.26",
 ]
 
 [project.optional-dependencies]

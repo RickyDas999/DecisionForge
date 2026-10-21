@@ -12,6 +12,8 @@ from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, Field
 
+from app.models.decision import DecisionModel, DecisionReport
+
 
 def _require_nonblank(value: str) -> str:
     if not value.strip():
@@ -74,6 +76,10 @@ class ComparisonResponse(BaseModel):
     important_tradeoffs: list[str] = Field(default_factory=list)
     confidence: float = Field(ge=0.0, le=1.0)
     limitations: list[str] = Field(default_factory=list)
+    #: Present when the decision engine produced this comparison: the model the
+    #: LLM extracted and the engine's deterministic analysis of it.
+    decision_model: DecisionModel | None = None
+    decision_report: DecisionReport | None = None
 
 
 # --------------------------------------------------------------------------- #

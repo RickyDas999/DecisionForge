@@ -125,3 +125,17 @@ def test_duplicate_ids_rejected(tmp_path, bad: str) -> None:
     path.write_text(bad)
     with pytest.raises(ValueError):
         load_golden_set(path)
+
+
+def test_recommendation_uses_engine_winner_not_text() -> None:
+    tossup = dict(GOOD, recommendation="No clear winner: PostgreSQL vs MongoDB",
+                  decision_report={"winner": "MongoDB", "total_scores": 4, "gaps": []})
+    assert recommendation_match(CASE, _outcome(tossup)) == 0.0
+
+
+def test_decision_completeness() -> None:
+    from app.evaluation.metrics import decision_completeness
+
+    partial = dict(GOOD, decision_report={"winner": "x", "total_scores": 3, "gaps": ["a / b"]})
+    assert decision_completeness(CASE, _outcome(partial)) == 0.75
+    assert decision_completeness(CASE, _outcome(GOOD)) is None
