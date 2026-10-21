@@ -139,12 +139,17 @@ async def run_eval(
     run_budget: RunBudget | None = None,
     metrics: Sequence[Metric] = METRICS,
     decision_engine: bool = True,
+    adaptive_samples: bool = True,
 ) -> EvalRun:
     """Run ``cases`` sequentially (no parallel model calls) and score each."""
     repo = _CapturingRepository()
     service = DecisionForgeService(
         create_dispatcher(
-            provider, skill_registry, search_provider, decision_engine=decision_engine
+            provider,
+            skill_registry,
+            search_provider,
+            decision_engine=decision_engine,
+            adaptive_samples=adaptive_samples,
         ),
         repo,
         run_budget=run_budget,

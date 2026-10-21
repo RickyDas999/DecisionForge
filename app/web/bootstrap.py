@@ -32,6 +32,7 @@ def create_demo_service(
         skill_registry=LocalSkillRegistry(),
         search_provider=DemoSearchProvider(),
         decision_engine=True,
+        adaptive_samples=True,
     )
     return DecisionForgeService(dispatcher, repository), repository
 

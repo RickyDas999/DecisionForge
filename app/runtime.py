@@ -32,11 +32,14 @@ def create_dispatcher(
     search_provider: SearchProvider | None = None,
     *,
     decision_engine: bool = False,
+    adaptive_samples: bool = False,
 ) -> DecisionForgeDispatcher:
     """Build a dispatcher whose four agents share ``model_provider``.
 
     ``decision_engine=True`` makes the comparison specialist extract a decision
     model that :mod:`app.decision` scores and simulates (still one model call).
+    ``adaptive_samples=True`` adds one second estimate when that analysis is a
+    close call.
 
     If ``skill_registry`` is given, each specialist receives its route's activated
     skill instructions and nothing else. If ``search_provider`` is given, the
@@ -58,6 +61,7 @@ def create_dispatcher(
             model_provider,
             instructions_for(AgentRoute.COMPARISON),
             decision_engine=decision_engine,
+            adaptive_samples=adaptive_samples,
         ),
         brief_agent=BriefAgent(model_provider, instructions_for(AgentRoute.BRIEF)),
         search_provider=search_provider,

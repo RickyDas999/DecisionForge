@@ -28,6 +28,7 @@ from app.providers.exceptions import ModelProviderError
 from app.service import DecisionForgeService
 from app.tools.exceptions import SearchError
 from app.web.api_models import (
+    MAX_LLM_CALLS,
     ErrorResponse,
     RecentRuns,
     RunResult,
@@ -81,7 +82,7 @@ def create_app(
             "search_provider": search_label,
             "search_enabled": search_enabled,
             "persistence_enabled": persistence_enabled,
-            "max_llm_calls": 2,
+            "max_llm_calls": MAX_LLM_CALLS,
             "architecture": "single-hop: orchestrator -> exactly one specialist",
         }
 

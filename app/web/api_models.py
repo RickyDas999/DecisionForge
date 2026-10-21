@@ -18,16 +18,21 @@ from app.skills.mapping import ROUTE_SKILLS
 
 _PREVIEW_CHARS = 120
 
-#: The hard architectural ceiling (1 orchestrator + 1 specialist).
-MAX_LLM_CALLS = 2
+#: The hard ceiling: 1 orchestrator + 1 specialist, plus 1 second estimate on a
+#: close comparison. Matches the default ``RunBudget.max_calls``.
+MAX_LLM_CALLS = 3
 
 
 def _llm_calls_from_events(events: list[ExecutionEvent]) -> int:
     """Deterministically count the model calls that completed this run.
 
-    ``route.selected`` => the orchestrator call returned (1).
+    Metered runs carry one ``llm.call`` event per call. For older runs without
+    them: ``route.selected`` => the orchestrator call returned (1), and
     ``specialist.completed`` => the specialist call returned (2).
     """
+    metered = sum(1 for e in events if e.event_type is EventType.LLM_CALL)
+    if metered:
+        return metered
     seen = {e.event_type for e in events}
     calls = 0
     if EventType.ROUTE_SELECTED in seen:

@@ -73,7 +73,7 @@ def test_api_index_health_is_mock_and_stateless_by_default(monkeypatch) -> None:
     assert health["status"] == "ok"
     assert health["model_provider"] == "mock"
     assert health["persistence_enabled"] is False
-    assert health["max_llm_calls"] == 2
+    assert health["max_llm_calls"] == 3
     # mock mode wires the offline demo search so the trace shows the step
     assert health["search_provider"] == "demo (offline)"
     assert health["search_enabled"] is True

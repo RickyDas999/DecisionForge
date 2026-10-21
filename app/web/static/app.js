@@ -17,7 +17,7 @@ let CONFIG = {
   search_provider: "none",
   search_enabled: false,
   persistence_enabled: false,
-  max_llm_calls: 2,
+  max_llm_calls: 3,
 };
 
 const SEARCH_ELIGIBLE_ROUTES = new Set(["research", "comparison"]);
@@ -357,7 +357,7 @@ function renderTech(run) {
   const cost = $("tech-cost");
   cost.replaceChildren();
   dlRow(cost, "LLM calls used", run.llm_calls);
-  dlRow(cost, "max allowed", `${run.llm_calls_max}  (1 routing + 1 specialist)`);
+  dlRow(cost, "max allowed", `${run.llm_calls_max}  (1 routing + 1 specialist + 1 second estimate on close calls)`);
   dlRow(cost, "retries", "0");
   dlRow(cost, "fallback agents", "0");
   dlRow(cost, "parallel LLM calls", "0");
@@ -491,7 +491,7 @@ async function init() {
   $("demo-note").textContent =
     CONFIG.model_provider === "mock"
       ? "This server runs offline (deterministic demo provider). Routing, the search tool, skill selection, persistence and the event trace are all real — only the model outputs are canned."
-      : `Model provider: ${CONFIG.model_provider}. Each request makes at most 2 real LLM calls.`;
+      : `Model provider: ${CONFIG.model_provider}. Each request makes at most ${CONFIG.max_llm_calls} real LLM calls.`;
   await loadRecent();
 }
 

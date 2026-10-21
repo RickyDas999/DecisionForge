@@ -18,8 +18,9 @@
         <strong>Single-hop multi-agent architecture:</strong> the orchestrator
         classifies your request and hands it to <em>one</em> specialist &mdash;
         never a chain, never a loop. Every successful request uses
-        <strong>at most two LLM calls</strong> (1 routing + 1 specialist);
-        everything else is deterministic Python.
+        <strong>at most three LLM calls</strong> (1 routing + 1 specialist, plus
+        1 second estimate only when a comparison is a close call); everything
+        else is deterministic Python.
       </p>
     </div>
   </header>
