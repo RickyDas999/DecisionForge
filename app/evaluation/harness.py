@@ -159,6 +159,7 @@ async def run_eval(
     metrics: Sequence[Metric] = METRICS,
     decision_engine: bool = True,
     adaptive_samples: bool = True,
+    grounded_research: bool = True,
 ) -> EvalRun:
     """Run ``cases`` sequentially (no parallel model calls) and score each."""
     repo = _CapturingRepository()
@@ -169,6 +170,7 @@ async def run_eval(
             search_provider,
             decision_engine=decision_engine,
             adaptive_samples=adaptive_samples,
+            grounded_research=grounded_research,
         ),
         repo,
         run_budget=run_budget,

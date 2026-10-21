@@ -93,3 +93,23 @@ def test_demo_second_opinion_differs_from_first() -> None:
         system_prompt="s", user_prompt=prompt + SECOND_OPINION_NOTE, response_model=DecisionModel))
     assert first.options == second.options == ["AWS", "GCP"]
     assert first.scores != second.scores
+
+
+def test_demo_grounded_research_quotes_real_evidence() -> None:
+    from app.agents.base import AgentRuntimeContext
+    from app.agents.research import ResearchAgent, _build_user_prompt
+    from app.models.specialists import ResearchInput
+    from app.tools.context import build_search_context, rendered_results
+    from app.web.demo_provider import DemoSearchProvider
+
+    response = asyncio.run(DemoSearchProvider().search("agentic workflows"))
+    task = ResearchInput(user_request="Research agentic workflows",
+                         provided_context=build_search_context(response),
+                         evidence=rendered_results(response))
+    assert "Result 1" in _build_user_prompt(task)
+    result = asyncio.run(ResearchAgent(DemoModelProvider(), grounded=True).run(
+        task, AgentRuntimeContext(run_id="t")))
+    g = result.grounding
+    assert g.verified == len(task.evidence)  # every real quote verifies
+    assert g.unsupported == 1 and g.model_knowledge == 1  # the deliberate cases
+    assert result.sources == [r.url for r in task.evidence]

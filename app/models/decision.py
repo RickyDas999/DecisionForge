@@ -103,3 +103,5 @@ class DecisionReport(BaseModel):
     samples: int = Field(default=1, ge=1)
     #: Mean midpoint gap between samples on a 0-1 scale (``None`` for one sample).
     disagreement: float | None = None
+    #: Score citations removed because they named a result that was never shown.
+    invalid_citations: int = Field(default=0, ge=0)

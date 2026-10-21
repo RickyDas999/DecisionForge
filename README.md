@@ -79,9 +79,10 @@ Exactly four logical agents:
 - **OrchestratorAgent** — classifies the request into one `AgentRoute`. One
   structured model call; returns a `RoutingDecision` (route + short reasoning).
   Does not answer, research, or invoke a specialist.
-- **ResearchAgent** — investigates/explains a topic; returns summary, key
-  findings, sources, limitations. Won't claim live research or invent citations
-  when no evidence is supplied.
+- **ResearchAgent**: investigates any topic ("Research agentic AI workflows").
+  In grounded mode (the default in the app), every finding cites a numbered
+  search result and quotes it, and code verifies each quote before the finding
+  is shown (see *Grounded research* below).
 - **ComparisonAgent**: compares alternatives. With the decision engine on (the
   default in the app), it does not write a verdict. It extracts a decision model
   that deterministic code scores and simulates (see *Decision engine* below), and
@@ -141,6 +142,36 @@ Spending more compute only where it changes the answer:
 
 Offline estimate: about $0.0004 for a clear comparison and $0.0007 for a close
 one (3 calls), both under the $0.002 per-run budget.
+
+## Grounded research
+
+Research agents commonly fail by citing sources that do not say what is
+claimed, or that do not exist. DecisionForge makes every citation checkable:
+
+1. The search tool's results are numbered (`Result 1..n`) and passed to the
+   agent both as text and as structured evidence.
+2. **LLM, one call:** a summary plus 3-6 findings, each with `source` = the
+   result it relies on and `quote` = 5-20 words copied from that result, or
+   `source: null` for general knowledge. The model never writes URLs.
+3. **Verifier, $0** (`app/grounding/verify.py`): each quote is checked against
+   the cited result's title and snippet, verbatim after normalisation or
+   near-verbatim (80% of words present). Citations to results that were never
+   shown, quotes under three words, and quotes the result does not contain are
+   **rejected**, with a reason.
+4. Verified findings keep their `[n]` link, uncited ones are labelled *general
+   knowledge*, and rejected ones move to limitations. `sources` is derived
+   from verified citations, so an invented URL cannot reach the answer.
+
+The comparison engine's score citations get the same treatment: a citation to
+a result number that was never shown is removed and counted.
+
+This proves *provenance* (the model really read this in result n), not
+*entailment* (the quote fully supports the claim). Checking entailment would
+need an LLM judge, which is a deliberate cost/benefit choice for later.
+
+For real research, turn on live search (free, no API key):
+`pip install -e ".[search]"` and `SEARCH_PROVIDER=duckduckgo`.
+`GROUNDED_RESEARCH=false` restores free-text findings.
 
 ## Agent Skills
 
@@ -304,6 +335,9 @@ LLM judge:
 | `option_recall` | the expected options are actually compared |
 | `recommendation_match` | the recommendation is acceptable (only where one is clear-cut) |
 | `rubric_coverage` | rubric terms a complete answer should mention |
+| `decision_completeness` | share of option x criterion cells the decision model scored |
+| `groundedness` | share of research findings with a verified citation |
+| `citation_precision` | share of cited findings whose quote really is in the cited result |
 
 Each report (`evals/reports/<label>.md` + `.json`) includes the cost per case,
 call counts, and p50 latency. `--baseline` adds a delta column for regression

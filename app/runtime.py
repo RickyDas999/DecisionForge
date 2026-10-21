@@ -33,13 +33,15 @@ def create_dispatcher(
     *,
     decision_engine: bool = False,
     adaptive_samples: bool = False,
+    grounded_research: bool = False,
 ) -> DecisionForgeDispatcher:
     """Build a dispatcher whose four agents share ``model_provider``.
 
     ``decision_engine=True`` makes the comparison specialist extract a decision
     model that :mod:`app.decision` scores and simulates (still one model call).
     ``adaptive_samples=True`` adds one second estimate when that analysis is a
-    close call.
+    close call. ``grounded_research=True`` makes research findings cite and
+    quote the search evidence, verified in code (still one model call).
 
     If ``skill_registry`` is given, each specialist receives its route's activated
     skill instructions and nothing else. If ``search_provider`` is given, the
@@ -55,7 +57,9 @@ def create_dispatcher(
     return DecisionForgeDispatcher(
         orchestrator=OrchestratorAgent(model_provider),
         research_agent=ResearchAgent(
-            model_provider, instructions_for(AgentRoute.RESEARCH)
+            model_provider,
+            instructions_for(AgentRoute.RESEARCH),
+            grounded=grounded_research,
         ),
         comparison_agent=ComparisonAgent(
             model_provider,

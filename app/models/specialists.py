@@ -8,21 +8,12 @@ removed multi-stage architecture.
 
 from __future__ import annotations
 
-from typing import Annotated
+from pydantic import BaseModel, Field
 
-from pydantic import AfterValidator, BaseModel, Field
-
+from app.models.common import NonBlankStr
 from app.models.decision import DecisionModel, DecisionReport
-
-
-def _require_nonblank(value: str) -> str:
-    if not value.strip():
-        raise ValueError("must not be empty or whitespace")
-    return value
-
-
-#: A string field that must contain at least one non-whitespace character.
-NonBlankStr = Annotated[str, AfterValidator(_require_nonblank)]
+from app.models.grounding import GroundingReport
+from app.models.search import SearchResult
 
 
 # --------------------------------------------------------------------------- #
@@ -35,6 +26,9 @@ class ResearchInput(BaseModel):
     #: Optional deterministic evidence (e.g. future tool output). When absent the
     #: agent must not claim to have performed live research.
     provided_context: str | None = None
+    #: The search results rendered into ``provided_context``, in order: ``Result n``
+    #: is ``evidence[n - 1]``. Lets the agent verify citations in code.
+    evidence: list[SearchResult] = Field(default_factory=list)
 
 
 class ResearchResponse(BaseModel):
@@ -44,8 +38,10 @@ class ResearchResponse(BaseModel):
     summary: str
     key_findings: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
-    #: Empty in Phase 3 — no real search tool exists yet.
+    #: URLs of the evidence the findings cite.
     sources: list[str] = Field(default_factory=list)
+    #: Present in grounded mode: every finding's citation, checked in code.
+    grounding: GroundingReport | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -56,6 +52,8 @@ class ComparisonInput(BaseModel):
 
     user_request: NonBlankStr
     provided_context: str | None = None
+    #: The search results rendered into ``provided_context`` (see ResearchInput).
+    evidence: list[SearchResult] = Field(default_factory=list)
 
 
 class ComparisonOption(BaseModel):

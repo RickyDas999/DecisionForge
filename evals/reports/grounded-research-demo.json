@@ -1,0 +1,788 @@
+{
+ "label": "grounded-research-demo",
+ "started_at": "2026-10-21T21:37:44.860368+00:00",
+ "metrics": {
+  "route_accuracy": {
+   "mean": 0.9444,
+   "n": 36
+  },
+  "contract_pass": {
+   "mean": 0.9722,
+   "n": 36
+  },
+  "option_recall": {
+   "mean": 0.8611,
+   "n": 18
+  },
+  "recommendation_match": {
+   "mean": 0.3846,
+   "n": 13
+  },
+  "rubric_coverage": {
+   "mean": 0.1481,
+   "n": 36
+  },
+  "decision_completeness": {
+   "mean": 1.0,
+   "n": 17
+  },
+  "groundedness": {
+   "mean": 0.5,
+   "n": 10
+  },
+  "citation_precision": {
+   "mean": 0.6667,
+   "n": 10
+  }
+ },
+ "totals": {
+  "cases": 36,
+  "errors": 1,
+  "llm_calls": 79,
+  "cost_usd": 0.0,
+  "list_cost_usd": 0.015731,
+  "mean_list_cost_per_case_usd": 0.000437,
+  "p50_latency_ms": 1.8
+ },
+ "calibration": {
+  "n": 13,
+  "brier": 0.5417,
+  "ece": 0.593,
+  "bins": [
+   {
+    "range": "0.6-0.8",
+    "n": 2,
+    "mean_confidence": 0.708,
+    "accuracy": 1.0
+   },
+   {
+    "range": "0.8-1.0",
+    "n": 11,
+    "mean_confidence": 0.92,
+    "accuracy": 0.273
+   }
+  ]
+ },
+ "cases": [
+  {
+   "id": "cmp-postgres-mongo",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": 1.0,
+    "rubric_coverage": 0.3333333333333333,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0004461,
+   "latency_ms": 10.0
+  },
+  {
+   "id": "cmp-aws-gcp",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": null,
+    "rubric_coverage": 0.5,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 3,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0007733,
+   "latency_ms": 6.8
+  },
+  {
+   "id": "cmp-fastapi-flask",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": 1.0,
+    "rubric_coverage": 0.0,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0004334,
+   "latency_ms": 3.3
+  },
+  {
+   "id": "cmp-react-vue-svelte",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": null,
+    "rubric_coverage": 0.5,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 3,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0009515,
+   "latency_ms": 6.8
+  },
+  {
+   "id": "cmp-kafka-rabbitmq",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 3,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0007978,
+   "latency_ms": 6.1
+  },
+  {
+   "id": "cmp-monolith-microservices",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.0,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 3,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0008404,
+   "latency_ms": 5.9
+  },
+  {
+   "id": "cmp-build-buy-auth",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.5,
+    "recommendation_match": 1.0,
+    "rubric_coverage": 0.5,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0004413,
+   "latency_ms": 3.3
+  },
+  {
+   "id": "cmp-pinecone-pgvector",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": null,
+    "rubric_coverage": 0.6666666666666666,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0004547,
+   "latency_ms": 3.6
+  },
+  {
+   "id": "cmp-k8s-ecs",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": 1.0,
+    "rubric_coverage": 0.5,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 3,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0008158,
+   "latency_ms": 5.9
+  },
+  {
+   "id": "cmp-redis-memcached",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": 1.0,
+    "rubric_coverage": 0.0,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 3,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.000789,
+   "latency_ms": 5.9
+  },
+  {
+   "id": "cmp-graphql-rest",
+   "expected_route": "comparison",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 0.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": 0.5,
+    "citation_precision": 0.6666666666666666
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0003338,
+   "latency_ms": 1.9
+  },
+  {
+   "id": "cmp-claude-model-tier",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.5,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.3333333333333333,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 3,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.000839,
+   "latency_ms": 5.9
+  },
+  {
+   "id": "cmp-sqlite-desktop",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.0,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0004409,
+   "latency_ms": 3.3
+  },
+  {
+   "id": "cmp-static-site",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.5,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0004563,
+   "latency_ms": 3.5
+  },
+  {
+   "id": "cmp-sqs-kafka-small",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.5,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.000457,
+   "latency_ms": 3.2
+  },
+  {
+   "id": "cmp-python-c-script",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.0,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0004328,
+   "latency_ms": 3.3
+  },
+  {
+   "id": "cmp-bcrypt-sha256",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 1.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.0,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 3,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0008069,
+   "latency_ms": 5.9
+  },
+  {
+   "id": "cmp-sso-build-google",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.5,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.0,
+    "decision_completeness": 1.0,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0004528,
+   "latency_ms": 3.3
+  },
+  {
+   "id": "res-vector-dbs",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": 0.5,
+    "citation_precision": 0.6666666666666666
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0003378,
+   "latency_ms": 1.6
+  },
+  {
+   "id": "res-observability",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": 0.5,
+    "citation_precision": 0.6666666666666666
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0003354,
+   "latency_ms": 1.4
+  },
+  {
+   "id": "res-edge-computing",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": 0.5,
+    "citation_precision": 0.6666666666666666
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.000333,
+   "latency_ms": 1.4
+  },
+  {
+   "id": "res-rag-eval",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.5,
+    "decision_completeness": null,
+    "groundedness": 0.5,
+    "citation_precision": 0.6666666666666666
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0003346,
+   "latency_ms": 1.7
+  },
+  {
+   "id": "res-prompt-injection",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": 0.5,
+    "citation_precision": 0.6666666666666666
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.000336,
+   "latency_ms": 1.3
+  },
+  {
+   "id": "res-sqlite-prod",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": 0.5,
+    "citation_precision": 0.6666666666666666
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0003352,
+   "latency_ms": 1.3
+  },
+  {
+   "id": "res-feature-flags",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": 0.5,
+    "citation_precision": 0.6666666666666666
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.000337,
+   "latency_ms": 1.5
+  },
+  {
+   "id": "res-llm-caching",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.5,
+    "decision_completeness": null,
+    "groundedness": 0.5,
+    "citation_precision": 0.6666666666666666
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.000332,
+   "latency_ms": 1.4
+  },
+  {
+   "id": "res-zero-trust",
+   "expected_route": "research",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 0.0,
+    "contract_pass": 0.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": "MissingBriefContextError: Brief requests require provided context.",
+   "llm_calls": 1,
+   "cost_usd": 0.0,
+   "list_cost_usd": 8.41e-05,
+   "latency_ms": 0.5
+  },
+  {
+   "id": "res-wasm",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": 0.5,
+    "citation_precision": 0.6666666666666666
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0003354,
+   "latency_ms": 1.4
+  },
+  {
+   "id": "brf-caching-findings",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002109,
+   "latency_ms": 1.0
+  },
+  {
+   "id": "brf-vendor-memo",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002089,
+   "latency_ms": 0.9
+  },
+  {
+   "id": "brf-slo-summary",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002081,
+   "latency_ms": 0.8
+  },
+  {
+   "id": "brf-hiring-plan",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002079,
+   "latency_ms": 0.9
+  },
+  {
+   "id": "brf-incident",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002082,
+   "latency_ms": 1.1
+  },
+  {
+   "id": "brf-security-audit",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002084,
+   "latency_ms": 0.8
+  },
+  {
+   "id": "brf-pricing-test",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002075,
+   "latency_ms": 0.8
+  },
+  {
+   "id": "brf-migration-status",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0,
+    "decision_completeness": null,
+    "groundedness": null,
+    "citation_precision": null
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002083,
+   "latency_ms": 0.8
+  }
+ ]
+}

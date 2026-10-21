@@ -20,6 +20,7 @@ from __future__ import annotations
 from app.agents.base import AgentRuntimeContext, BaseAgent
 from app.decision import analyze, to_comparison_response
 from app.decision.ensemble import disagreement, merge_models
+from app.grounding import drop_invalid_sources
 from app.models.decision import DecisionModel
 from app.models.specialists import ComparisonInput, ComparisonResponse
 from app.providers.exceptions import ModelProviderError
@@ -128,26 +129,30 @@ class ComparisonAgent(BaseAgent[ComparisonInput, ComparisonResponse]):
         context: AgentRuntimeContext,
     ) -> ComparisonResponse:
         if self.decision_engine:
-            return await self._decide(_build_user_prompt(task_input))
+            return await self._decide(_build_user_prompt(task_input), len(task_input.evidence))
         return await self.model_provider.generate_structured(
             system_prompt=self._system_prompt(),
             user_prompt=_build_user_prompt(task_input),
             response_model=ComparisonResponse,
         )
 
-    async def _extract(self, user_prompt: str) -> DecisionModel:
-        return await self.model_provider.generate_structured(
+    async def _extract(self, user_prompt: str, evidence_count: int) -> tuple[DecisionModel, int]:
+        """One extraction, with citations to never-shown results removed."""
+        model = await self.model_provider.generate_structured(
             system_prompt=self._system_prompt(),
             user_prompt=user_prompt,
             response_model=DecisionModel,
         )
+        return drop_invalid_sources(model, evidence_count)
 
-    async def _decide(self, user_prompt: str) -> ComparisonResponse:
-        model = await self._extract(user_prompt)
+    async def _decide(self, user_prompt: str, evidence_count: int) -> ComparisonResponse:
+        model, invalid = await self._extract(user_prompt, evidence_count)
         report = analyze(model)
         if self.adaptive_samples and report.verdict in SECOND_SAMPLE_VERDICTS:
             try:
-                second = await self._extract(user_prompt + SECOND_OPINION_NOTE)
+                second, invalid_second = await self._extract(
+                    user_prompt + SECOND_OPINION_NOTE, evidence_count
+                )
             except ModelProviderError:
                 # The first answer stands on its own; never fail the run here.
                 pass
@@ -157,4 +162,6 @@ class ComparisonAgent(BaseAgent[ComparisonInput, ComparisonResponse]):
                     update={"samples": 2, "disagreement": disagreement(model, second)}
                 )
                 model = merged
+                invalid += invalid_second
+        report = report.model_copy(update={"invalid_citations": invalid})
         return to_comparison_response(model, report)

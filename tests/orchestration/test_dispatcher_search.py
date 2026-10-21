@@ -303,3 +303,27 @@ def test_without_search_provider_context_passes_through_unchanged() -> None:
     prompt = res.calls[0].user_prompt
     assert "only user" in prompt
     assert "SEARCH EVIDENCE" not in prompt
+
+
+def test_specialist_receives_the_rendered_results_as_evidence() -> None:
+    from app.agents.base import AgentRuntimeContext
+    from app.models.dispatch import DispatchRequest
+    from app.models.search import SearchResponse, SearchResult
+    from app.runtime import create_dispatcher
+    from app.tools.search import MockSearchProvider
+    from app.web.demo_provider import DemoModelProvider
+
+    results = [SearchResult(title=f"T{i}", url=f"https://e.com/{i}", snippet=f"s{i}") for i in range(3)]
+    search = MockSearchProvider(responses=[SearchResponse(query="q", results=results)])
+    dispatcher = create_dispatcher(DemoModelProvider(), search_provider=search)
+    captured = {}
+    original = dispatcher.research_agent.run
+
+    async def capture(task_input, context):
+        captured["input"] = task_input
+        return await original(task_input, context)
+
+    dispatcher.research_agent.run = capture
+    asyncio.run(dispatcher.dispatch(DispatchRequest(user_request="Explain observability"),
+                                    AgentRuntimeContext(run_id="t")))
+    assert [r.url for r in captured["input"].evidence] == [r.url for r in results]

@@ -94,3 +94,21 @@ def test_combine_search_only_is_labelled() -> None:
 def test_combine_both_empty_is_none() -> None:
     assert combine_contexts(None, None) is None
     assert combine_contexts("  ", "") is None
+
+
+def test_rendered_results_match_the_numbered_context() -> None:
+    from app.models.search import SearchResponse, SearchResult
+    from app.tools.context import MAX_SNIPPET_CHARS, build_search_context, rendered_results
+
+    response = SearchResponse(query="q", results=[
+        SearchResult(title=f"T{i}", url=f"https://e.com/{i}", snippet="word " * 200)
+        for i in range(8)
+    ])
+    shown = rendered_results(response)
+    text = build_search_context(response)
+    assert 1 <= len(shown) <= 5
+    for n, result in enumerate(shown, start=1):
+        assert f"Result {n}\nTitle: {result.title}" in text
+        assert f"Snippet: {result.snippet}" in text
+        assert len(result.snippet) <= MAX_SNIPPET_CHARS
+    assert f"Result {len(shown) + 1}" not in text

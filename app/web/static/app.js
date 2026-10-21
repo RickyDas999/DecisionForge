@@ -134,11 +134,43 @@ function list(items, { link } = {}) {
 }
 
 // ---- per-route result rendering -------------------------------------
+const FINDING_STATUS = {
+  verified: ["ok", "verified"],
+  model_knowledge: ["", "general knowledge"],
+  unsupported: ["err", "rejected"],
+};
+
+function renderGrounding(g) {
+  const f = document.createDocumentFragment();
+  const summary = `${g.verified} verified · ${g.model_knowledge} general knowledge · ${g.unsupported} rejected`;
+  const ul = el("ul", "findings");
+  g.findings.forEach((fd) => {
+    const li = el("li");
+    const [cls, label] = FINDING_STATUS[fd.status] || ["", fd.status];
+    li.appendChild(chip(label, cls));
+    li.appendChild(document.createTextNode(" " + fd.claim + " "));
+    const url = fd.source ? g.evidence_urls[fd.source - 1] : null;
+    if (fd.status === "verified" && url) {
+      const a = el("a", null, `[${fd.source}]`);
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      li.appendChild(a);
+    }
+    if (fd.quote && fd.status !== "model_knowledge") li.appendChild(el("q", "quote", fd.quote));
+    if (fd.reason) li.appendChild(el("span", "reason", ` (${fd.reason})`));
+    ul.appendChild(li);
+  });
+  f.appendChild(block(`Findings, each citation checked in code: ${summary}`, ul));
+  return f;
+}
+
 function renderResearch(r) {
   const f = document.createDocumentFragment();
   f.appendChild(block("Topic", el("p", null, r.topic)));
   f.appendChild(block("Summary", el("p", null, r.summary)));
-  f.appendChild(block("Key findings", list(r.key_findings)));
+  if (r.grounding) f.appendChild(renderGrounding(r.grounding));
+  else f.appendChild(block("Key findings", list(r.key_findings)));
   f.appendChild(block("Sources", list(r.sources, { link: true })));
   f.appendChild(block("Limitations", list(r.limitations)));
   return f;
