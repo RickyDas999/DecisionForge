@@ -14,9 +14,13 @@ demo data.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 
 from pydantic import BaseModel
+
+from app.models.decision import Criterion, DecisionModel, Score
 
 from app.models.routing import AgentRoute, RoutingDecision
 from app.models.search import SearchResponse, SearchResult
@@ -52,6 +56,84 @@ def _route_for(text: str) -> RoutingDecision:
     )
 
 
+_PAIR_RE = re.compile(
+    r"(?:compare|between)\s+(.+?)\s+and\s+(.+?)(?=\s+(?:for|in|on|at|when)\b|[?.,:]|$)",
+    re.IGNORECASE,
+)
+_SPLIT_RE = re.compile(r"\s+(?:vs\.?|versus|or)\s+", re.IGNORECASE)
+_STOP_RE = re.compile(r"\s+(?:for|in|on|at|when|to|with)\b|[?.,:;]")
+_DEMO_CRITERIA = (
+    ("Fit for the stated context", 0.35),
+    ("Operational simplicity", 0.25),
+    ("Low total cost", 0.2),
+    ("Ecosystem and support", 0.2),
+)
+
+
+def _trailing_name(chunk: str) -> str:
+    """The option name at the end of e.g. 'Should we host this on AWS'."""
+    words = chunk.strip().split()
+    name: list[str] = []
+    for word in reversed(words):
+        if word[:1].isupper() or word[:1].isdigit():
+            name.insert(0, word)
+        else:
+            break
+    return " ".join(name) if name else (words[-1] if words else "")
+
+
+def _leading_name(chunk: str) -> str:
+    """The option name at the start of e.g. 'Svelte for a three-person team'."""
+    head = _STOP_RE.split(chunk.strip(), maxsplit=1)[0]
+    return " ".join(head.split()[:3])
+
+
+def _demo_options(request: str) -> list[str]:
+    """A light, deterministic read of the option names in a comparison request."""
+    match = _PAIR_RE.search(request)
+    if match:
+        candidates = [match.group(1), match.group(2)]
+    else:
+        parts = _SPLIT_RE.split(request)
+        if len(parts) < 2:
+            return ["Option A", "Option B"]
+        candidates = [_trailing_name(parts[0]), *[p for p in parts[1:-1]], _leading_name(parts[-1])]
+    options: list[str] = []
+    for raw in candidates:
+        name = raw.strip(" ?.,:;\"'")
+        if name and name.lower() not in {o.lower() for o in options}:
+            options.append(name)
+    return options[:4] if len(options) >= 2 else ["Option A", "Option B"]
+
+
+def _demo_decision(user_prompt: str) -> DecisionModel:
+    """Illustrative decision model: real option names, hash-derived scores."""
+    request = user_prompt.split("\n\n", 1)[0].removeprefix("Comparison request:").strip()
+    options = _demo_options(request)
+    has_evidence = "Result 1" in user_prompt
+    scores = []
+    for option in options:
+        for index, (criterion, _) in enumerate(_DEMO_CRITERIA):
+            digest = hashlib.sha256(f"{option}|{criterion}".lower().encode()).digest()
+            mid = 3.0 + digest[0] / 255 * 6.0  # 3..9
+            half = 0.5 + digest[1] / 255 * 1.5  # 0.5..2
+            scores.append(Score(
+                option=option,
+                criterion=criterion,
+                low=round(max(0.0, mid - half), 1),
+                high=round(min(10.0, mid + half), 1),
+                note="demo estimate",
+                source=1 if has_evidence and index == 0 else None,
+            ))
+    return DecisionModel(
+        question=request,
+        options=options,
+        criteria=[Criterion(name=n, weight=w) for n, w in _DEMO_CRITERIA],
+        scores=scores,
+        assumptions=["Offline demo: scores are illustrative, not real estimates."],
+    )
+
+
 class DemoModelProvider(ModelProvider):
     """Offline canned-response provider for the local web demo."""
 
@@ -80,6 +162,9 @@ class DemoModelProvider(ModelProvider):
     def _canned(self, user_prompt: str, response_model: type[BaseModel]) -> BaseModel:
         if response_model is RoutingDecision:
             return _route_for(user_prompt)
+
+        if response_model is DecisionModel:
+            return _demo_decision(user_prompt)
 
         if response_model is ResearchResponse:
             return ResearchResponse(

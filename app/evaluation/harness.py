@@ -138,11 +138,14 @@ async def run_eval(
     skill_registry: SkillRegistry | None = None,
     run_budget: RunBudget | None = None,
     metrics: Sequence[Metric] = METRICS,
+    decision_engine: bool = True,
 ) -> EvalRun:
     """Run ``cases`` sequentially (no parallel model calls) and score each."""
     repo = _CapturingRepository()
     service = DecisionForgeService(
-        create_dispatcher(provider, skill_registry, search_provider),
+        create_dispatcher(
+            provider, skill_registry, search_provider, decision_engine=decision_engine
+        ),
         repo,
         run_budget=run_budget,
     )

@@ -74,4 +74,8 @@ def test_demo_app_end_to_end_is_offline(tmp_path) -> None:
     body = resp.json()
     assert body["route"] == "comparison"
     assert body["status"] == "completed"
-    assert body["result"]["question"] == "Demo comparison"
+    result = body["result"]
+    assert [o["name"] for o in result["options"]] == ["PostgreSQL", "MongoDB"]
+    report = result["decision_report"]
+    assert report["winner"] in {"PostgreSQL", "MongoDB"}
+    assert result["confidence"] == report["win_probability"]

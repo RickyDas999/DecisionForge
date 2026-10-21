@@ -144,9 +144,70 @@ function renderResearch(r) {
   return f;
 }
 
+function pct(v) {
+  return `${Math.round(v * 100)}%`;
+}
+
+function barRow(label, fraction, value) {
+  const row = el("div", "bar-row");
+  row.appendChild(el("span", "bar-label", label));
+  const track = el("span", "bar-track");
+  const fill = el("span", "bar-fill");
+  fill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
+  track.appendChild(fill);
+  row.appendChild(track);
+  row.appendChild(el("span", "bar-value", value));
+  return row;
+}
+
+const VERDICT_LABEL = { robust: "Robust winner", leaning: "Leaning", "toss-up": "Toss-up" };
+
+function renderDecision(model, report) {
+  const f = document.createDocumentFragment();
+
+  const wins = el("div", "bars");
+  report.ranking.forEach((o) =>
+    wins.appendChild(barRow(o.option, o.win_probability, `${pct(o.win_probability)} · ${o.expected_score.toFixed(1)}/10`))
+  );
+  const winBlock = block(
+    `Win probability: ${VERDICT_LABEL[report.verdict]} (${report.simulations.toLocaleString()} simulations)`,
+    wins
+  );
+  f.appendChild(winBlock);
+
+  const weights = el("div", "bars");
+  Object.entries(report.weights).forEach(([name, w]) => weights.appendChild(barRow(name, w, pct(w))));
+  f.appendChild(block("Criteria weights", weights));
+
+  // Option x criterion score ranges, with the search result each cites.
+  const table = el("table", "score-table");
+  const head = el("tr");
+  head.appendChild(el("th", null, ""));
+  model.criteria.forEach((c) => head.appendChild(el("th", null, c.name)));
+  table.appendChild(head);
+  const norm = (s) => s.trim().toLowerCase().split(/\s+/).join(" ");
+  model.options.forEach((opt) => {
+    const tr = el("tr");
+    tr.appendChild(el("th", null, opt));
+    model.criteria.forEach((c) => {
+      const sc = model.scores.find((x) => norm(x.option) === norm(opt) && norm(x.criterion) === norm(c.name));
+      const td = el("td", null, sc ? `${sc.low}–${sc.high}` : "?");
+      if (sc && sc.source) td.appendChild(el("sup", null, `[${sc.source}]`));
+      if (sc && sc.note) td.title = sc.note;
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  });
+  const scroll = el("div", "table-scroll");
+  scroll.appendChild(table);
+  f.appendChild(block("Scores (0–10 range; [n] = search result cited)", scroll));
+  return f;
+}
+
 function renderComparison(r) {
   const f = document.createDocumentFragment();
   f.appendChild(block("Question", el("p", null, r.question)));
+  if (r.decision_model && r.decision_report) f.appendChild(renderDecision(r.decision_model, r.decision_report));
   const opts = el("div");
   (r.options || []).forEach((o) => {
     const card = el("div", "option-card");
@@ -158,7 +219,7 @@ function renderComparison(r) {
     opts.appendChild(card);
   });
   f.appendChild(block("Options", opts));
-  f.appendChild(block("Key tradeoffs", list(r.important_tradeoffs)));
+  f.appendChild(block(r.decision_report ? "What would flip the decision" : "Key tradeoffs", list(r.important_tradeoffs)));
 
   const rec = el("div", "rec-card");
   rec.appendChild(el("div", "k", "Recommendation"));

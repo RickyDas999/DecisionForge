@@ -30,8 +30,13 @@ def create_dispatcher(
     model_provider: ModelProvider,
     skill_registry: SkillRegistry | None = None,
     search_provider: SearchProvider | None = None,
+    *,
+    decision_engine: bool = False,
 ) -> DecisionForgeDispatcher:
     """Build a dispatcher whose four agents share ``model_provider``.
+
+    ``decision_engine=True`` makes the comparison specialist extract a decision
+    model that :mod:`app.decision` scores and simulates (still one model call).
 
     If ``skill_registry`` is given, each specialist receives its route's activated
     skill instructions and nothing else. If ``search_provider`` is given, the
@@ -50,7 +55,9 @@ def create_dispatcher(
             model_provider, instructions_for(AgentRoute.RESEARCH)
         ),
         comparison_agent=ComparisonAgent(
-            model_provider, instructions_for(AgentRoute.COMPARISON)
+            model_provider,
+            instructions_for(AgentRoute.COMPARISON),
+            decision_engine=decision_engine,
         ),
         brief_agent=BriefAgent(model_provider, instructions_for(AgentRoute.BRIEF)),
         search_provider=search_provider,

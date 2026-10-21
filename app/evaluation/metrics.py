@@ -91,8 +91,20 @@ def recommendation_match(case: GoldenCase, out: PipelineOutcome) -> float | None
         return None
     if out.result is None:
         return 0.0
-    rec = str(out.result.get("recommendation") or "").lower()
+    # Prefer the engine's winner: a "no clear winner: A vs B" sentence names both.
+    report = out.result.get("decision_report") or {}
+    rec = str(report.get("winner") or out.result.get("recommendation") or "").lower()
     return 1.0 if any(a.lower() in rec for a in case.acceptable_recommendations) else 0.0
+
+
+def decision_completeness(case: GoldenCase, out: PipelineOutcome) -> float | None:
+    """Share of option x criterion cells the extracted decision model scored."""
+    if out.result is None or not out.result.get("decision_report"):
+        return None
+    report = out.result["decision_report"]
+    scored = report.get("total_scores", 0)
+    cells = scored + len(report.get("gaps", []))
+    return scored / cells if cells else 0.0
 
 
 def rubric_coverage(case: GoldenCase, out: PipelineOutcome) -> float | None:
@@ -111,4 +123,5 @@ METRICS: list[Metric] = [
     Metric("option_recall", "expected options compared", option_recall),
     Metric("recommendation_match", "recommendation is an acceptable option", recommendation_match),
     Metric("rubric_coverage", "rubric terms mentioned", rubric_coverage),
+    Metric("decision_completeness", "decision-model cells scored", decision_completeness),
 ]

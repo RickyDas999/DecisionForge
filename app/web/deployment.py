@@ -53,6 +53,8 @@ from app.web.demo_provider import DemoModelProvider, DemoSearchProvider
 _TRUE = {"1", "true", "yes", "on"}
 
 PERSISTENCE_ENV_VAR = "PERSISTENCE_ENABLED"
+#: ``false`` restores the free-text comparison specialist.
+DECISION_ENGINE_ENV_VAR = "DECISION_ENGINE"
 
 
 def _env_bool(name: str, *, default: bool) -> bool:
@@ -132,6 +134,7 @@ def create_deployment_app() -> FastAPI:
         _model_provider(model_config),
         skill_registry=_skill_registry(),
         search_provider=search_provider,
+        decision_engine=_env_bool(DECISION_ENGINE_ENV_VAR, default=True),
     )
     service = DecisionForgeService(
         dispatcher, repository, run_budget=model_config.run_budget

@@ -51,7 +51,7 @@ def main() -> int:
         provider = create_model_provider(config)
 
     service = DecisionForgeService(
-        create_dispatcher(provider, search_provider=DemoSearchProvider()),
+        create_dispatcher(provider, search_provider=DemoSearchProvider(), decision_engine=True),
         NullRunRepository(),
         run_budget=config.run_budget,
     )
