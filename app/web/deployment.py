@@ -13,8 +13,11 @@ Modes:
 * ``MODEL_PROVIDER=mock`` (default) — the deterministic offline
   :class:`DemoModelProvider`. Usable with no credentials.
 * ``MODEL_PROVIDER=anthropic`` — the real :class:`AnthropicModelProvider`
-  (requires ``ANTHROPIC_API_KEY`` + ``ANTHROPIC_MODEL``; real, billable calls).
+  (requires ``ANTHROPIC_API_KEY``; ``ANTHROPIC_MODEL`` defaults to
+  ``claude-haiku-5-5``; real, billable calls capped by ``RUN_BUDGET_USD``).
   Still exactly two LLM calls per successful request.
+* ``REPLAY_MODE=replay`` — recorded real model output from ``REPLAY_CASSETTE``;
+  no key and no cost (any prompt not in the cassette fails the run).
 
 Search is **off** by default in a deployment (``SEARCH_PROVIDER=mock``). Set
 ``SEARCH_PROVIDER=duckduckgo`` and install the ``ddgs`` package to enable it.
@@ -32,6 +35,7 @@ from app.persistence.sqlite import SQLiteRunRepository, resolve_db_path
 from app.providers.config import ModelConfig, ModelProviderType
 from app.providers.factory import create_model_provider
 from app.providers.model import ModelProvider
+from app.providers.replay import ReplayMode
 from app.runtime import create_dispatcher
 from app.service import DecisionForgeService
 from app.skills.base import SkillRegistry
@@ -59,6 +63,9 @@ def _env_bool(name: str, *, default: bool) -> bool:
 
 
 def _model_provider(config: ModelConfig) -> ModelProvider:
+    if config.replay_mode is ReplayMode.REPLAY:
+        # Recorded real model output, served from the cassette: no key, no cost.
+        return create_model_provider(config)
     if config.provider is ModelProviderType.MOCK:
         # A bare MockModelProvider needs pre-queued responses; DemoModelProvider
         # gives a usable, deterministic offline demo with none.
@@ -110,6 +117,12 @@ def create_deployment_app() -> FastAPI:
     configuration comes from the host.
     """
     model_config = ModelConfig.from_env(use_dotenv=False)
+    if os.environ.get("VERCEL") and not os.environ.get("SPEND_LEDGER_PATH"):
+        # Vercel's filesystem is read-only outside /tmp; the lifetime cap then
+        # holds per warm instance.
+        model_config = model_config.model_copy(
+            update={"spend_ledger_path": "/tmp/decisionforge-spend.json"}
+        )
     search_config = SearchConfig.from_env()
     persistence_enabled = _env_bool(PERSISTENCE_ENV_VAR, default=False)
 
@@ -120,7 +133,9 @@ def create_deployment_app() -> FastAPI:
         skill_registry=_skill_registry(),
         search_provider=search_provider,
     )
-    service = DecisionForgeService(dispatcher, repository)
+    service = DecisionForgeService(
+        dispatcher, repository, run_budget=model_config.run_budget
+    )
     return create_app(
         service,
         repository,

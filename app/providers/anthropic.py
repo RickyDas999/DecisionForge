@@ -13,12 +13,20 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from app.providers.config import DEFAULT_MAX_TOKENS
 from app.providers.exceptions import (
     ModelConfigurationError,
     ModelResponseError,
     StructuredOutputError,
 )
 from app.providers.model import ModelProvider
+from app.providers.usage import (
+    CallSource,
+    LifetimeSpend,
+    active_ledger,
+    cost_usd,
+    estimate_tokens,
+)
 
 # A single leading/trailing Markdown fence, optionally tagged ```json.
 _JSON_FENCE_RE = re.compile(r"\A```(?:json)?\s*(.*?)\s*```\Z", re.DOTALL | re.IGNORECASE)
@@ -29,6 +37,13 @@ _STRUCTURED_INSTRUCTIONS = (
     "against this JSON Schema:\n\n{schema}"
 )
 
+#: Models that reject ``output_config.effort`` (it is sent to every other model).
+_NO_EFFORT_MODELS = frozenset({"claude-haiku-4-5"})
+
+#: Models on which ``thinking: {type: "disabled"}`` is accepted at low effort.
+#: Elsewhere thinking is left at the model default (some models reject disabling it).
+_THINKING_OFF_MODELS = frozenset({"claude-haiku-5-5", "claude-sonnet-5", "claude-opus-5"})
+
 
 class AnthropicModelProvider(ModelProvider):
     """Generate text and structured output via the Anthropic Messages API."""
@@ -38,8 +53,11 @@ class AnthropicModelProvider(ModelProvider):
         *,
         api_key: str,
         model: str,
-        max_tokens: int = 4096,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float | None = None,
+        effort: str | None = None,
+        disable_thinking: bool = False,
+        lifetime_spend: LifetimeSpend | None = None,
         client: Any | None = None,
     ) -> None:
         if not api_key:
@@ -52,6 +70,9 @@ class AnthropicModelProvider(ModelProvider):
         self._model = model
         self._max_tokens = max_tokens
         self._temperature = temperature
+        self._effort = effort
+        self._disable_thinking = disable_thinking
+        self._lifetime_spend = lifetime_spend
         self._client = client if client is not None else _build_async_client(api_key)
 
     @property
@@ -59,10 +80,7 @@ class AnthropicModelProvider(ModelProvider):
         return self._model
 
     async def generate_text(self, *, system_prompt: str, user_prompt: str) -> str:
-        response = await self._client.messages.create(
-            **self._base_request(system_prompt=system_prompt, user_prompt=user_prompt)
-        )
-        return _extract_text(response)
+        return await self._call("generate_text", system_prompt, user_prompt)
 
     async def generate_structured(
         self,
@@ -71,18 +89,16 @@ class AnthropicModelProvider(ModelProvider):
         user_prompt: str,
         response_model: type[BaseModel],
     ) -> BaseModel:
-        schema = json.dumps(response_model.model_json_schema(), indent=2, sort_keys=True)
+        # Compact separators: the schema is resent on every call, so whitespace
+        # is paid-for input tokens.
+        schema = json.dumps(
+            response_model.model_json_schema(), separators=(",", ":"), sort_keys=True
+        )
         structured_system = (
             f"{system_prompt}\n\n"
             + _STRUCTURED_INSTRUCTIONS.format(schema=schema)
         )
-        response = await self._client.messages.create(
-            **self._base_request(
-                system_prompt=structured_system, user_prompt=user_prompt
-            )
-        )
-
-        text = _extract_text(response)
+        text = await self._call("generate_structured", structured_system, user_prompt)
         payload = _strip_json_fence(text)
 
         try:
@@ -99,6 +115,50 @@ class AnthropicModelProvider(ModelProvider):
                 f"Anthropic JSON did not match {response_model.__name__}"
             ) from exc
 
+    async def _call(self, operation: str, system_prompt: str, user_prompt: str) -> str:
+        """One metered Messages API request; returns the response text.
+
+        Before sending, the worst case (estimated input + full ``max_tokens``) is
+        checked against the active run budget and the lifetime spend cap; either
+        raises :class:`BudgetExceededError` and nothing is sent. Afterwards the
+        real token usage is recorded.
+        """
+        estimated_input = estimate_tokens(system_prompt, user_prompt)
+        worst_case = cost_usd(self._model, estimated_input, self._max_tokens)
+        ledger = active_ledger()
+        if ledger is not None:
+            ledger.check(
+                model=self._model,
+                input_tokens=estimated_input,
+                max_output_tokens=self._max_tokens,
+            )
+        if self._lifetime_spend is not None:
+            self._lifetime_spend.check(worst_case)
+
+        response = await self._client.messages.create(
+            **self._base_request(system_prompt=system_prompt, user_prompt=user_prompt)
+        )
+
+        usage = getattr(response, "usage", None)
+        input_tokens = getattr(usage, "input_tokens", None) or estimated_input
+        output_tokens = getattr(usage, "output_tokens", None) or self._max_tokens
+        if ledger is not None:
+            ledger.record(
+                operation=operation,
+                model=self._model,
+                source=CallSource.LIVE,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
+        if self._lifetime_spend is not None:
+            self._lifetime_spend.add(cost_usd(self._model, input_tokens, output_tokens))
+
+        if getattr(response, "stop_reason", None) == "max_tokens":
+            raise ModelResponseError(
+                f"response hit max_tokens={self._max_tokens} and was truncated"
+            )
+        return _extract_text(response)
+
     def _base_request(self, *, system_prompt: str, user_prompt: str) -> dict[str, Any]:
         request: dict[str, Any] = {
             "model": self._model,
@@ -108,6 +168,10 @@ class AnthropicModelProvider(ModelProvider):
         }
         if self._temperature is not None:
             request["temperature"] = self._temperature
+        if self._effort is not None and self._model not in _NO_EFFORT_MODELS:
+            request["output_config"] = {"effort": self._effort}
+        if self._disable_thinking and self._model in _THINKING_OFF_MODELS:
+            request["thinking"] = {"type": "disabled"}
         return request
 
 

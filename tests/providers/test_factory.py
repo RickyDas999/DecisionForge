@@ -51,10 +51,11 @@ def test_anthropic_without_api_key_raises() -> None:
         create_model_provider(config)
 
 
-def test_anthropic_without_model_raises() -> None:
+def test_anthropic_without_model_defaults_to_cheapest(stub_anthropic_client) -> None:
     config = ModelConfig(provider=ModelProviderType.ANTHROPIC, api_key=FAKE_KEY)
-    with pytest.raises(ModelConfigurationError):
-        create_model_provider(config)
+    provider = create_model_provider(config)
+    assert isinstance(provider, AnthropicModelProvider)
+    assert provider.model == "claude-haiku-5-5"
 
 
 def test_anthropic_with_full_config_builds_provider(stub_anthropic_client) -> None:

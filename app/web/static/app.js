@@ -40,6 +40,10 @@ const ROUTE_WHY_PREFIX = {
   brief: "Your request asks to transform supplied material into a brief, so DecisionForge routed it to the Brief Agent.",
 };
 
+function fmtUsd(v) {
+  return typeof v === "number" ? `$${v.toFixed(5)}` : "—";
+}
+
 const EVENT_LABEL = {
   "run.started": () => "Request started",
   "route.selected": (ev) =>
@@ -53,6 +57,11 @@ const EVENT_LABEL = {
     `${SPECIALIST_LABEL[ev.metadata?.route] || "Specialist"} started`,
   "specialist.completed": (ev) =>
     `${SPECIALIST_LABEL[ev.metadata?.route] || "Specialist"} completed`,
+  "llm.call": (ev) => {
+    const m = ev.metadata || {};
+    const how = m.source === "live" ? fmtUsd(m.cost_usd) : `${m.source}, ${fmtUsd(m.list_cost_usd)} if live`;
+    return `Model call: ${m.input_tokens ?? "?"} in / ${m.output_tokens ?? "?"} out tokens (${how})`;
+  },
   "run.completed": () => "Request completed",
   "run.failed": (ev) => `Request failed${ev.message ? ` (${ev.message})` : ""}`,
 };
@@ -205,6 +214,11 @@ function renderChips(run) {
   const conf = run.result && typeof run.result.confidence === "number" ? run.result.confidence : null;
   if (conf != null) row.appendChild(chipKV("Confidence", `${Math.round(conf * 100)}%`));
   row.appendChild(chipKV("LLM calls", `${run.llm_calls} / ${run.llm_calls_max} max`, "accent"));
+  if (run.usage) row.appendChild(chipKV("Cost", costChipText(run.usage)));
+}
+
+function costChipText(u) {
+  return u.live_calls > 0 ? fmtUsd(u.cost_usd) : `$0 (${fmtUsd(u.list_cost_usd)} if live)`;
 }
 
 function searchChipText(run) {
@@ -285,6 +299,13 @@ function renderTech(run) {
   dlRow(cost, "retries", "0");
   dlRow(cost, "fallback agents", "0");
   dlRow(cost, "parallel LLM calls", "0");
+  if (run.usage) {
+    const u = run.usage;
+    dlRow(cost, "tokens (in / out)", `${u.input_tokens} / ${u.output_tokens}`);
+    dlRow(cost, "charged this run", fmtUsd(u.cost_usd));
+    dlRow(cost, "cost if live", fmtUsd(u.list_cost_usd));
+    dlRow(cost, "run budget", `${fmtUsd(u.budget_usd)}, ${u.max_calls} calls max`);
+  }
 
   const trace = $("trace");
   trace.replaceChildren();

@@ -14,6 +14,8 @@ demo data.
 
 from __future__ import annotations
 
+import json
+
 from pydantic import BaseModel
 
 from app.models.routing import AgentRoute, RoutingDecision
@@ -25,6 +27,7 @@ from app.models.specialists import (
     ResearchResponse,
 )
 from app.providers.model import ModelProvider
+from app.providers.usage import DEFAULT_MODEL, record_estimated
 from app.tools.search import MockSearchProvider
 
 _COMPARISON_HINTS = (" vs ", " vs.", "compare ", " versus ", " or ")
@@ -62,6 +65,19 @@ class DemoModelProvider(ModelProvider):
         user_prompt: str,
         response_model: type[BaseModel],
     ) -> BaseModel:
+        result = self._canned(user_prompt, response_model)
+        # Record what this call would cost on the default live model. The schema
+        # is counted because the live provider sends it with every request.
+        schema = json.dumps(response_model.model_json_schema(), separators=(",", ":"))
+        record_estimated(
+            operation="generate_structured",
+            model=DEFAULT_MODEL,
+            prompts=(system_prompt, schema, user_prompt),
+            output=result.model_dump_json(),
+        )
+        return result
+
+    def _canned(self, user_prompt: str, response_model: type[BaseModel]) -> BaseModel:
         if response_model is RoutingDecision:
             return _route_for(user_prompt)
 

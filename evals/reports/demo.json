@@ -1,0 +1,547 @@
+{
+ "label": "demo",
+ "started_at": "2026-10-21T20:09:45.211360+00:00",
+ "metrics": {
+  "route_accuracy": {
+   "mean": 0.9333,
+   "n": 30
+  },
+  "contract_pass": {
+   "mean": 0.9667,
+   "n": 30
+  },
+  "option_recall": {
+   "mean": 0.0,
+   "n": 12
+  },
+  "recommendation_match": {
+   "mean": 0.0,
+   "n": 7
+  },
+  "rubric_coverage": {
+   "mean": 0.0167,
+   "n": 30
+  }
+ },
+ "totals": {
+  "cases": 30,
+  "errors": 1,
+  "llm_calls": 59,
+  "cost_usd": 0.0,
+  "list_cost_usd": 0.00751,
+  "mean_list_cost_per_case_usd": 0.00025,
+  "p50_latency_ms": 1.0
+ },
+ "cases": [
+  {
+   "id": "cmp-postgres-mongo",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002888,
+   "latency_ms": 3.3
+  },
+  {
+   "id": "cmp-aws-gcp",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002843,
+   "latency_ms": 1.4
+  },
+  {
+   "id": "cmp-fastapi-flask",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002856,
+   "latency_ms": 1.2
+  },
+  {
+   "id": "cmp-react-vue-svelte",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002886,
+   "latency_ms": 1.4
+  },
+  {
+   "id": "cmp-kafka-rabbitmq",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.000287,
+   "latency_ms": 1.2
+  },
+  {
+   "id": "cmp-monolith-microservices",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002898,
+   "latency_ms": 1.1
+  },
+  {
+   "id": "cmp-build-buy-auth",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.000285,
+   "latency_ms": 1.2
+  },
+  {
+   "id": "cmp-pinecone-pgvector",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002889,
+   "latency_ms": 1.2
+  },
+  {
+   "id": "cmp-k8s-ecs",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002882,
+   "latency_ms": 1.2
+  },
+  {
+   "id": "cmp-redis-memcached",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002847,
+   "latency_ms": 1.2
+  },
+  {
+   "id": "cmp-graphql-rest",
+   "expected_route": "comparison",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 0.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.000259,
+   "latency_ms": 1.2
+  },
+  {
+   "id": "cmp-claude-model-tier",
+   "expected_route": "comparison",
+   "route": "comparison",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": 0.0,
+    "recommendation_match": 0.0,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002925,
+   "latency_ms": 1.5
+  },
+  {
+   "id": "res-vector-dbs",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002605,
+   "latency_ms": 1.0
+  },
+  {
+   "id": "res-observability",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002596,
+   "latency_ms": 0.9
+  },
+  {
+   "id": "res-edge-computing",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002587,
+   "latency_ms": 0.9
+  },
+  {
+   "id": "res-rag-eval",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002593,
+   "latency_ms": 0.8
+  },
+  {
+   "id": "res-prompt-injection",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002597,
+   "latency_ms": 0.8
+  },
+  {
+   "id": "res-sqlite-prod",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002594,
+   "latency_ms": 0.8
+  },
+  {
+   "id": "res-feature-flags",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002602,
+   "latency_ms": 1.0
+  },
+  {
+   "id": "res-llm-caching",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.5
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002582,
+   "latency_ms": 0.9
+  },
+  {
+   "id": "res-zero-trust",
+   "expected_route": "research",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 0.0,
+    "contract_pass": 0.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": "MissingBriefContextError: Brief requests require provided context.",
+   "llm_calls": 1,
+   "cost_usd": 0.0,
+   "list_cost_usd": 8.41e-05,
+   "latency_ms": 0.5
+  },
+  {
+   "id": "res-wasm",
+   "expected_route": "research",
+   "route": "research",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002596,
+   "latency_ms": 0.9
+  },
+  {
+   "id": "brf-caching-findings",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002109,
+   "latency_ms": 1.4
+  },
+  {
+   "id": "brf-vendor-memo",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002089,
+   "latency_ms": 0.9
+  },
+  {
+   "id": "brf-slo-summary",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002081,
+   "latency_ms": 0.8
+  },
+  {
+   "id": "brf-hiring-plan",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002079,
+   "latency_ms": 0.9
+  },
+  {
+   "id": "brf-incident",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002082,
+   "latency_ms": 0.8
+  },
+  {
+   "id": "brf-security-audit",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002084,
+   "latency_ms": 0.8
+  },
+  {
+   "id": "brf-pricing-test",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002075,
+   "latency_ms": 0.8
+  },
+  {
+   "id": "brf-migration-status",
+   "expected_route": "brief",
+   "route": "brief",
+   "scores": {
+    "route_accuracy": 1.0,
+    "contract_pass": 1.0,
+    "option_recall": null,
+    "recommendation_match": null,
+    "rubric_coverage": 0.0
+   },
+   "error": null,
+   "llm_calls": 2,
+   "cost_usd": 0.0,
+   "list_cost_usd": 0.0002083,
+   "latency_ms": 0.8
+  }
+ ]
+}

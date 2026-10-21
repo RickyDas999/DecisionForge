@@ -16,9 +16,24 @@ from pydantic import BaseModel, Field
 
 from app.env import load_dotenv
 from app.providers.exceptions import ModelConfigurationError
+from app.providers.replay import ReplayMode
+from app.providers.usage import DEFAULT_LIFETIME_LIMIT_USD, DEFAULT_MODEL, RunBudget
 
-#: Default token ceiling for a single generation when none is configured.
-DEFAULT_MAX_TOKENS = 4096
+#: Default output-token ceiling for a single generation. Output tokens are the
+#: expensive half of a call, and this cap bounds every call's worst-case cost.
+DEFAULT_MAX_TOKENS = 800
+
+#: Default reasoning effort sent to models that accept it.
+DEFAULT_EFFORT = "low"
+
+#: Where the lifetime live-spend total is kept (``data/`` is git-ignored).
+DEFAULT_SPEND_LEDGER_PATH = "data/spend.json"
+
+#: Default record/replay cassette (committed, so recorded runs replay anywhere).
+DEFAULT_REPLAY_CASSETTE = "cassettes/default.json"
+
+_TRUE = {"1", "true", "yes", "on"}
+_EFFORTS = {"low", "medium", "high", "xhigh", "max"}
 
 
 class ModelProviderType(str, Enum):
@@ -40,6 +55,14 @@ class ModelConfig(BaseModel):
     api_key: str | None = None
     max_tokens: int = Field(default=DEFAULT_MAX_TOKENS, ge=1)
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    #: ``None`` omits the parameter (model default).
+    effort: str | None = DEFAULT_EFFORT
+    disable_thinking: bool = True
+    run_budget: RunBudget = Field(default_factory=RunBudget)
+    spend_limit_usd: float = Field(default=DEFAULT_LIFETIME_LIMIT_USD, gt=0.0)
+    spend_ledger_path: str = DEFAULT_SPEND_LEDGER_PATH
+    replay_mode: ReplayMode = ReplayMode.OFF
+    replay_cassette: str = DEFAULT_REPLAY_CASSETTE
 
     @classmethod
     def from_env(
@@ -51,8 +74,14 @@ class ModelConfig(BaseModel):
         """Build a config from environment variables.
 
         Reads ``MODEL_PROVIDER`` (default ``mock``), ``ANTHROPIC_API_KEY``,
-        ``ANTHROPIC_MODEL``, and the optional tuning values
-        ``ANTHROPIC_MAX_TOKENS`` and ``ANTHROPIC_TEMPERATURE``.
+        ``ANTHROPIC_MODEL`` (default ``claude-haiku-5-5`` when unset), and the
+        optional tuning values ``ANTHROPIC_MAX_TOKENS``, ``ANTHROPIC_TEMPERATURE``,
+        ``ANTHROPIC_EFFORT`` (``low``; ``none`` omits it) and
+        ``ANTHROPIC_DISABLE_THINKING`` (``true``). Cost guards:
+        ``RUN_BUDGET_USD`` (0.002), ``RUN_MAX_LLM_CALLS`` (3), ``SPEND_LIMIT_USD``
+        (0.03, lifetime) and ``SPEND_LEDGER_PATH`` (``data/spend.json``).
+        Record/replay: ``REPLAY_MODE`` (``off`` | ``record`` | ``replay`` |
+        ``auto``) and ``REPLAY_CASSETTE`` (``cassettes/default.json``).
 
         When ``env`` is not given, the nearest ``.env`` file at or above the
         current working directory is loaded into ``os.environ`` first (real
@@ -82,8 +111,44 @@ class ModelConfig(BaseModel):
         api_key = source.get("ANTHROPIC_API_KEY") or None
         model = source.get("ANTHROPIC_MODEL") or None
 
-        max_tokens = _parse_int(source.get("ANTHROPIC_MAX_TOKENS"), DEFAULT_MAX_TOKENS)
-        temperature = _parse_float(source.get("ANTHROPIC_TEMPERATURE"))
+        max_tokens = _parse_int(
+            source.get("ANTHROPIC_MAX_TOKENS"), DEFAULT_MAX_TOKENS, "ANTHROPIC_MAX_TOKENS"
+        )
+        temperature = _parse_float(source.get("ANTHROPIC_TEMPERATURE"), "ANTHROPIC_TEMPERATURE")
+
+        raw_effort = (source.get("ANTHROPIC_EFFORT") or DEFAULT_EFFORT).strip().lower()
+        if raw_effort == "none":
+            effort = None
+        elif raw_effort in _EFFORTS:
+            effort = raw_effort
+        else:
+            raise ModelConfigurationError(
+                f"ANTHROPIC_EFFORT must be one of {sorted(_EFFORTS)} or 'none', "
+                f"got {raw_effort!r}"
+            )
+        raw_thinking = source.get("ANTHROPIC_DISABLE_THINKING")
+        disable_thinking = (
+            True if raw_thinking is None or not raw_thinking.strip()
+            else raw_thinking.strip().lower() in _TRUE
+        )
+
+        default_budget = RunBudget()
+        run_budget = RunBudget(
+            max_usd=_parse_float(source.get("RUN_BUDGET_USD"), "RUN_BUDGET_USD")
+            or default_budget.max_usd,
+            max_calls=_parse_int(
+                source.get("RUN_MAX_LLM_CALLS"), default_budget.max_calls, "RUN_MAX_LLM_CALLS"
+            ),
+        )
+
+        raw_replay = (source.get("REPLAY_MODE") or "off").strip().lower() or "off"
+        try:
+            replay_mode = ReplayMode(raw_replay)
+        except ValueError as exc:
+            allowed = ", ".join(m.value for m in ReplayMode)
+            raise ModelConfigurationError(
+                f"Unknown REPLAY_MODE {raw_replay!r}; expected one of: {allowed}"
+            ) from exc
 
         return cls(
             provider=provider,
@@ -91,26 +156,35 @@ class ModelConfig(BaseModel):
             api_key=api_key,
             max_tokens=max_tokens,
             temperature=temperature,
+            replay_mode=replay_mode,
+            replay_cassette=source.get("REPLAY_CASSETTE") or DEFAULT_REPLAY_CASSETTE,
+            effort=effort,
+            disable_thinking=disable_thinking,
+            run_budget=run_budget,
+            spend_limit_usd=_parse_float(source.get("SPEND_LIMIT_USD"), "SPEND_LIMIT_USD")
+            or DEFAULT_LIFETIME_LIMIT_USD,
+            spend_ledger_path=source.get("SPEND_LEDGER_PATH") or DEFAULT_SPEND_LEDGER_PATH,
         )
 
+    @property
+    def resolved_model(self) -> str:
+        """The model a real call would use (``model`` or the cheap default)."""
+        return self.model or DEFAULT_MODEL
 
-def _parse_int(raw: str | None, default: int) -> int:
+
+def _parse_int(raw: str | None, default: int, name: str) -> int:
     if raw is None or raw.strip() == "":
         return default
     try:
         return int(raw)
     except ValueError as exc:
-        raise ModelConfigurationError(
-            f"ANTHROPIC_MAX_TOKENS must be an integer, got {raw!r}"
-        ) from exc
+        raise ModelConfigurationError(f"{name} must be an integer, got {raw!r}") from exc
 
 
-def _parse_float(raw: str | None) -> float | None:
+def _parse_float(raw: str | None, name: str) -> float | None:
     if raw is None or raw.strip() == "":
         return None
     try:
         return float(raw)
     except ValueError as exc:
-        raise ModelConfigurationError(
-            f"ANTHROPIC_TEMPERATURE must be a number, got {raw!r}"
-        ) from exc
+        raise ModelConfigurationError(f"{name} must be a number, got {raw!r}") from exc
