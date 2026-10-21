@@ -6,7 +6,7 @@ assembly with hard, deterministic size limits so Claude's input stays small.
 
 from __future__ import annotations
 
-from app.models.search import SearchResponse
+from app.models.search import SearchResponse, SearchResult
 
 #: At most this many results are rendered, regardless of how many were returned.
 MAX_RESULTS = 5
@@ -29,6 +29,36 @@ def _truncate(text: str, limit: int) -> str:
     return text[: max(limit - 1, 0)].rstrip() + _ELLIPSIS
 
 
+def _render_block(index: int, result: SearchResult) -> str:
+    lines = [f"Result {index}", f"Title: {result.title.strip()}"]
+    if result.source and result.source.strip():
+        lines.append(f"Source: {result.source.strip()}")
+    lines.append(f"URL: {result.url.strip()}")
+    lines.append(f"Snippet: {result.snippet}")
+    return "\n".join(lines)
+
+
+def rendered_results(response: SearchResponse) -> list[SearchResult]:
+    """The results the model actually sees, in order, with truncated snippets.
+
+    ``Result n`` in the rendered context is element ``n - 1`` of this list, so
+    citations can be checked against exactly the text the model was given.
+    """
+    header_len = len(f"Search query: {response.query.strip()}")
+    shown: list[SearchResult] = []
+    used = header_len
+    for index, result in enumerate(response.results[:MAX_RESULTS], start=1):
+        display = result.model_copy(
+            update={"snippet": _truncate(result.snippet, MAX_SNIPPET_CHARS)}
+        )
+        block = _render_block(index, display)
+        if shown and used + len(block) + 2 > MAX_CONTEXT_CHARS:
+            break
+        shown.append(display)
+        used += len(block) + 2
+    return shown
+
+
 def build_search_context(response: SearchResponse) -> str:
     """Render a :class:`SearchResponse` as compact, size-bounded plain text."""
     header = f"Search query: {response.query.strip()}"
@@ -36,21 +66,8 @@ def build_search_context(response: SearchResponse) -> str:
     if not considered:
         return f"{header}\n\n(no search results)"
 
-    blocks: list[str] = []
-    used = len(header)
-    for index, result in enumerate(considered, start=1):
-        lines = [f"Result {index}", f"Title: {result.title.strip()}"]
-        if result.source and result.source.strip():
-            lines.append(f"Source: {result.source.strip()}")
-        lines.append(f"URL: {result.url.strip()}")
-        lines.append(f"Snippet: {_truncate(result.snippet, MAX_SNIPPET_CHARS)}")
-        block = "\n".join(lines)
-
-        if blocks and used + len(block) + 2 > MAX_CONTEXT_CHARS:
-            break
-        blocks.append(block)
-        used += len(block) + 2
-
+    shown = rendered_results(response)
+    blocks = [_render_block(i, r) for i, r in enumerate(shown, start=1)]
     body = "\n\n".join([header, *blocks])
     if len(blocks) < len(considered):
         body += (
