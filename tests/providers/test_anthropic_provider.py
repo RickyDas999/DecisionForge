@@ -265,3 +265,11 @@ def test_structured_schema_is_compact() -> None:
         system_prompt="s", user_prompt="u", response_model=JudgeResult
     ))
     assert '": ' not in client.messages.last_request["system"].split("JSON Schema:")[1]
+
+
+def test_structured_prompt_asks_for_minified_single_line_json() -> None:
+    provider, client = _provider(_billed_message('{"approved": true, "score": 0.5}', 1, 1))
+    asyncio.run(provider.generate_structured(
+        system_prompt="s", user_prompt="u", response_model=JudgeResult
+    ))
+    assert "minified JSON object on a single line" in client.messages.last_request["system"]

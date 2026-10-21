@@ -63,7 +63,7 @@ Extract:
 each phrased so higher is better (e.g. "Low operating cost"), with weight = \
 relative importance from 0 to 1. Keep options x criteria at 12 or fewer.
 - scores: one entry for EVERY option and criterion pair, with low and high on a \
-0-10 scale (wider = less certain), a note of at most 8 words, and source = the \
+0-10 scale (wider = less certain), a note of at most 6 words, and source = the \
 number of the search Result that supports it, or null for general knowledge.
 - assumptions: at most 3 short assumptions about the user's situation.
 

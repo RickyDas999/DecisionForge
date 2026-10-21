@@ -31,10 +31,13 @@ from app.providers.usage import (
 # A single leading/trailing Markdown fence, optionally tagged ```json.
 _JSON_FENCE_RE = re.compile(r"\A```(?:json)?\s*(.*?)\s*```\Z", re.DOTALL | re.IGNORECASE)
 
+# Minified output matters: indentation and line breaks are billed output tokens
+# and can nearly double a structured response.
 _STRUCTURED_INSTRUCTIONS = (
-    "Respond with exactly one JSON object and nothing else: no prose, no "
-    "explanation, and no Markdown code fences. The JSON object must validate "
-    "against this JSON Schema:\n\n{schema}"
+    "Respond with exactly one minified JSON object on a single line (no "
+    "indentation, no line breaks) and nothing else: no prose, no explanation, "
+    "and no Markdown code fences. The JSON object must validate against this "
+    "JSON Schema:\n\n{schema}"
 )
 
 #: Models that reject ``output_config.effort`` (it is sent to every other model).
