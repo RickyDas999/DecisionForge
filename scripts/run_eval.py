@@ -9,10 +9,11 @@ Replay recorded real answers (zero cost, no key; needs a recorded cassette):
     python scripts/run_eval.py --provider replay --label haiku-replay
 
 Live (billable). Shows the worst-case cost and stops unless --yes-spend is given.
-Every live answer is recorded to the cassette, so re-running replays it for free:
+Every live answer is recorded to the cassette, so re-running replays it for free.
+--pick runs a balanced 5-case sample (2 comparison, 2 research, 1 brief):
 
     MODEL_PROVIDER=anthropic ANTHROPIC_API_KEY=... \
-        python scripts/run_eval.py --provider live --limit 5 --yes-spend
+        python scripts/run_eval.py --provider live --pick --yes-spend
 
 Compare against an earlier report to see regressions:
 
@@ -26,7 +27,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-from app.evaluation.golden import load_golden_set
+from app.evaluation.golden import load_golden_set, pick_balanced
 from app.evaluation.harness import run_eval
 from app.evaluation.report import load_report, save_report
 from app.providers.config import ModelConfig, ModelProviderType
@@ -43,6 +44,8 @@ def main() -> int:
     parser.add_argument("--label", default=None, help="report name (default: the provider)")
     parser.add_argument("--limit", type=int, default=None, help="run only the first N cases")
     parser.add_argument("--tag", default=None, help="run only cases with this tag")
+    parser.add_argument("--pick", action="store_true",
+                        help="a balanced sample: 2 comparison, 2 research, 1 brief")
     parser.add_argument("--baseline", default=None, help="earlier report JSON to diff against")
     parser.add_argument("--out", default="evals/reports")
     parser.add_argument("--yes-spend", action="store_true", help="confirm live API spend")
@@ -51,6 +54,8 @@ def main() -> int:
     cases = load_golden_set()
     if args.tag:
         cases = [c for c in cases if args.tag in c.tags]
+    if args.pick:
+        cases = pick_balanced(cases)
     if args.limit:
         cases = cases[: args.limit]
     if not cases:
