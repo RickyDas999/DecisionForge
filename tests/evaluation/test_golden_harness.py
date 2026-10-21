@@ -154,3 +154,19 @@ def test_grounding_metrics() -> None:
                        route=AgentRoute.RESEARCH)
     assert citation_precision(research, uncited) is None
     assert groundedness(CASE, _outcome(GOOD)) is None  # comparisons have no findings
+
+
+def test_pick_balanced_covers_every_route_deterministically() -> None:
+    from app.evaluation.golden import pick_balanced
+
+    cases = load_golden_set()
+    picked = pick_balanced(cases)
+    routes = [c.expected_route for c in picked]
+    assert routes.count(AgentRoute.COMPARISON) == 2
+    assert routes.count(AgentRoute.RESEARCH) == 2
+    assert routes.count(AgentRoute.BRIEF) == 1
+    assert all(c.acceptable_recommendations for c in picked
+               if c.expected_route is AgentRoute.COMPARISON)
+    assert pick_balanced(cases) == picked
+    assert pick_balanced(cases, {AgentRoute.BRIEF: 3}) == \
+        [c for c in cases if c.expected_route is AgentRoute.BRIEF][:3]
