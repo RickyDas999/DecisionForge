@@ -352,10 +352,26 @@ dozen cases make them noisy.
 
 ```bash
 python scripts/run_eval.py                          # offline demo provider, $0
-python scripts/run_eval.py --provider replay        # recorded real answers, $0
-python scripts/run_eval.py --provider live --limit 5          # prints worst case and stops
-python scripts/run_eval.py --provider live --limit 5 --yes-spend   # billable, recorded
+python scripts/run_eval.py --provider replay --pick # recorded real answers, $0
 ```
+
+**A small live run** (2 comparisons, 2 research questions, 1 brief, about
+$0.003, at most $0.01). Put `ANTHROPIC_API_KEY=...` in a local `.env`, which is
+git-ignored and loaded automatically, then:
+
+```bash
+pip install -e ".[dev,anthropic,search]"
+MODEL_PROVIDER=anthropic SEARCH_PROVIDER=duckduckgo \
+  python scripts/run_eval.py --provider live --pick --label haiku-live-5             # prints the worst case, spends nothing
+MODEL_PROVIDER=anthropic SEARCH_PROVIDER=duckduckgo \
+  python scripts/run_eval.py --provider live --pick --label haiku-live-5 --yes-spend # billable
+```
+
+Every model call is recorded in `cassettes/default.json`, and every search in
+`cassettes/search.json`, because live results drift and a replay needs identical
+prompts. Commit both cassettes with the report, and
+`python scripts/run_eval.py --provider replay --pick` then reproduces the run
+anywhere with no key, no network and no cost.
 
 The committed `evals/reports/demo.md` is the offline baseline. The demo provider
 returns canned answers, so its quality scores are near zero by design. It
