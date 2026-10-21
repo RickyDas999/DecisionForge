@@ -117,6 +117,24 @@ def rubric_coverage(case: GoldenCase, out: PipelineOutcome) -> float | None:
     return sum(1 for term in case.must_mention if term.lower() in text) / len(case.must_mention)
 
 
+def _grounding(out: PipelineOutcome) -> dict[str, Any] | None:
+    return (out.result or {}).get("grounding") or None
+
+
+def groundedness(case: GoldenCase, out: PipelineOutcome) -> float | None:
+    """Share of research findings whose citation was verified against the evidence."""
+    grounding = _grounding(out)
+    return None if grounding is None else float(grounding["groundedness"])
+
+
+def citation_precision(case: GoldenCase, out: PipelineOutcome) -> float | None:
+    """Share of cited research findings whose quote really is in the cited result."""
+    grounding = _grounding(out)
+    if grounding is None or grounding.get("citation_precision") is None:
+        return None
+    return float(grounding["citation_precision"])
+
+
 METRICS: list[Metric] = [
     Metric("route_accuracy", "routed to the expected specialist", route_accuracy),
     Metric("contract_pass", "result validates and meets its contract", contract_pass),
@@ -124,4 +142,6 @@ METRICS: list[Metric] = [
     Metric("recommendation_match", "recommendation is an acceptable option", recommendation_match),
     Metric("rubric_coverage", "rubric terms mentioned", rubric_coverage),
     Metric("decision_completeness", "decision-model cells scored", decision_completeness),
+    Metric("groundedness", "research findings with a verified citation", groundedness),
+    Metric("citation_precision", "cited findings whose quote checks out", citation_precision),
 ]

@@ -139,3 +139,18 @@ def test_decision_completeness() -> None:
     partial = dict(GOOD, decision_report={"winner": "x", "total_scores": 3, "gaps": ["a / b"]})
     assert decision_completeness(CASE, _outcome(partial)) == 0.75
     assert decision_completeness(CASE, _outcome(GOOD)) is None
+
+
+def test_grounding_metrics() -> None:
+    from app.evaluation.metrics import citation_precision, groundedness
+
+    research = GoldenCase(id="r", request="x", expected_route=AgentRoute.RESEARCH)
+    grounded = _outcome({"topic": "t", "summary": "s",
+                         "grounding": {"groundedness": 0.5, "citation_precision": 0.75}},
+                        route=AgentRoute.RESEARCH)
+    assert groundedness(research, grounded) == 0.5
+    assert citation_precision(research, grounded) == 0.75
+    uncited = _outcome({"grounding": {"groundedness": 0.0, "citation_precision": None}},
+                       route=AgentRoute.RESEARCH)
+    assert citation_precision(research, uncited) is None
+    assert groundedness(CASE, _outcome(GOOD)) is None  # comparisons have no findings
